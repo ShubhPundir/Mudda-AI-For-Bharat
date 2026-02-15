@@ -40,6 +40,8 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 20. **Low-Bandwidth Support**: Support users with network latency up to 5 seconds without data loss
 21. **Cost Efficiency**: Maintain AI processing cost below ₹0.50 per mudda analyzed
 22. **Regional Coverage**: Achieve representation from at least 25 Indian states within 12 months
+23. **RAG Retrieval Accuracy**: Achieve 85% relevance for top-3 retrieved documents in resolution planning
+24. **RAG Citation Usage**: Achieve 70% of resolution plans citing at least one relevant regulation or past case
 
 ## 3. Glossary
 
@@ -50,6 +52,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 - **Duplication_Detection_Service**: Specialized AI microservice that uses semantic similarity and embeddings to identify near-duplicate issues
 - **Categorization_Service**: Specialized AI microservice that performs automatic multi-label classification across civic domains
 - **OCR_Service**: Specialized AI microservice that extracts text from images and scanned documents
+- **RAG_Service**: Retrieval-Augmented Generation microservice that provides contextual knowledge from rules, regulations, and historical resolution data to enhance Agentic AI decision-making and DAG synthesis
 - **Temporal_Workflow**: Durable, fault-tolerant workflow orchestrated by Temporal.io with replay and audit capabilities
 - **Kafka_Event**: Asynchronous message published to Apache Kafka event streaming platform
 - **Transactional_Service**: Spring microservice handling real-time user operations and data mutations
@@ -89,6 +92,8 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 - **Asynchronous_Processing**: Non-blocking execution allowing system to handle delayed or intermittent operations
 - **Connectivity_Resilience**: System capability to function despite intermittent network availability
 
+MARKED-BY-SHUBH
+
 ## 4. Functional Requirements
 
 ### Requirement 1: User Registration and Authentication
@@ -115,8 +120,9 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 2. WHEN a mudda includes images, THE Media_Service SHALL store the images and extract metadata including upload timestamp and file size
 3. WHEN a mudda includes location data, THE Mudda_Service SHALL validate and store geographic coordinates with the mudda
 4. WHEN a mudda is created, THE Mudda_Service SHALL assign it a unique identifier and initial status of "pending_analysis"
-5. THE Mudda_Service SHALL enforce a maximum text length of 5000 characters per mudda
-6. WHEN a user attempts to submit a mudda without required fields, THE Mudda_Service SHALL reject the submission and return validation errors
+5. The Categorization_Service shall automatically detect and validate the uploaded issue for correct department handling
+6. THE Mudda_Service SHALL enforce a maximum text length of 5000 characters per mudda
+7. WHEN a user attempts to submit a mudda without required fields, THE Mudda_Service SHALL reject the submission and return validation errors
 
 ### Requirement 3: AI-Driven Content Analysis Workflow
 
@@ -232,7 +238,32 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 13. WHEN data residency mode is enabled, THE Agentic_AI_Service SHALL use only self-hosted models within Indian data centers
 14. THE Agentic_AI_Service SHALL adjust decision thresholds based on feedback from the Analytics_Feedback_Service
 
-### Requirement 10: Analytical Intelligence Layer
+### Requirement 10: RAG-Enhanced Resolution Planning
+
+**User Story:** As a platform administrator, I want the AI system to leverage historical resolution data, civic rules, and regulations when planning issue resolution, so that proposed solutions are informed by past successes and comply with relevant policies.
+
+#### Acceptance Criteria
+
+1. WHEN the Agentic_AI_Service plans resolution steps for a mudda, THE Agentic_AI_Service SHALL query the RAG_Service for relevant context
+2. WHEN the RAG_Service receives a query, THE RAG_Service SHALL retrieve relevant documents from rules, regulations, and historical resolution database
+3. THE RAG_Service SHALL maintain a vector database of civic rules, regulations, and successfully resolved mudda cases
+4. WHEN similar past resolutions exist, THE RAG_Service SHALL return top-k most relevant cases with similarity scores
+5. WHEN applicable regulations exist, THE RAG_Service SHALL return relevant policy documents and compliance requirements
+6. WHEN the Agentic_AI_Service generates a resolution DAG, THE Agentic_AI_Service SHALL incorporate RAG-retrieved context into LLM prompts
+7. THE RAG_Service SHALL support semantic search across multilingual documents in all supported Indian languages
+8. WHEN a mudda is successfully resolved, THE RAG_Service SHALL index the resolution workflow for future retrieval
+9. THE RAG_Service SHALL maintain separate embeddings for different civic domains (infrastructure, health, governance, etc.)
+10. WHEN RAG retrieval confidence is low (<0.6), THE Agentic_AI_Service SHALL proceed with general planning without historical context
+11. THE RAG_Service SHALL support hybrid search combining semantic similarity and keyword matching
+12. WHEN regulations are updated, THE RAG_Service SHALL re-index affected documents within 24 hours
+13. THE RAG_Service SHALL log all retrieval operations with query, retrieved documents, and relevance scores for auditability
+14. WHEN generating resolution plans, THE Agentic_AI_Service SHALL cite specific regulations and past cases used in decision-making
+15. THE RAG_Service SHALL support filtering by jurisdiction (city, district, state) to retrieve location-specific regulations
+16. WHEN data residency mode is enabled, THE RAG_Service SHALL use only self-hosted embedding models within Indian data centers
+17. THE RAG_Service SHALL maintain version control for all indexed regulations and policy documents
+18. WHEN conflicting regulations are retrieved, THE RAG_Service SHALL return all conflicts with precedence metadata for human review
+
+### Requirement 11: Analytical Intelligence Layer
 
 **User Story:** As a data analyst, I want aggregated civic data available in a separate analytical layer, so that I can generate insights without impacting transactional system performance.
 
@@ -251,7 +282,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 11. THE Analytical_Layer SHALL provide dashboards for bias monitoring and fairness audits
 12. THE Analytical_Layer SHALL support export of analytical insights for AI model retraining pipelines
 
-### Requirement 11: User Engagement and Collaboration
+### Requirement 12: User Engagement and Collaboration
 
 **User Story:** As a citizen, I want to comment on muddas, upvote issues, and collaborate on solutions, so that I can participate meaningfully in civic discussions.
 
@@ -264,7 +295,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 5. THE Comment_Service SHALL support threaded discussions with parent-child comment relationships
 6. WHEN a comment is created, THE Agentic_AI_Service SHALL analyze it for hate speech using the same workflow as mudda analysis
 
-### Requirement 12: Issue Status Tracking and Lifecycle
+### Requirement 13: Issue Status Tracking and Lifecycle
 
 **User Story:** As a citizen, I want to track the status of muddas from submission to resolution, so that I can see progress on civic issues I care about.
 
@@ -278,7 +309,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 6. THE Mudda_Service SHALL emit a Kafka event for every status transition
 7. THE Mudda_Service SHALL maintain a complete audit trail of all status changes with timestamps and actors
 
-### Requirement 13: Search and Discovery
+### Requirement 14: Search and Discovery
 
 **User Story:** As a platform user, I want to search for muddas by keywords, categories, and location, so that I can find relevant civic issues.
 
@@ -291,7 +322,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 5. THE Search_Service SHALL support sorting by recency, popularity, and relevance
 6. WHEN search results are returned, THE Search_Service SHALL include mudda summaries, categories, and engagement metrics
 
-### Requirement 14: Notification System
+### Requirement 15: Notification System
 
 **User Story:** As a platform user, I want to receive notifications about updates to muddas I follow, so that I stay informed about civic issues I care about.
 
@@ -304,7 +335,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 5. WHEN a user configures notification preferences, THE Notification_Service SHALL respect those preferences for all future notifications
 6. THE Notification_Service SHALL batch notifications to avoid overwhelming users with high-frequency updates
 
-### Requirement 15: Media Handling and Storage
+### Requirement 16: Media Handling and Storage
 
 **User Story:** As a platform user, I want to upload images and documents with my muddas, so that I can provide visual evidence of civic issues.
 
@@ -318,7 +349,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 6. THE Media_Service SHALL store media files in object storage with secure access controls
 7. WHEN media is accessed, THE Media_Service SHALL serve content through a CDN for optimal performance
 
-### Requirement 16: Escalation and Priority Management
+### Requirement 17: Escalation and Priority Management
 
 **User Story:** As a platform administrator, I want high-priority or urgent civic issues to be automatically escalated, so that critical issues receive timely attention.
 
@@ -333,7 +364,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 7. WHEN muddas from historically underserved regions are detected, THE Escalation_Workflow SHALL apply priority boosting to prevent systemic bias
 8. THE Escalation_Workflow SHALL consider language-specific engagement patterns when determining escalation thresholds
 
-### Requirement 17: Auditability and Explainability
+### Requirement 18: Auditability and Explainability
 
 **User Story:** As a compliance officer, I want all AI decisions to be traceable and explainable, so that the platform can demonstrate fair and accountable content moderation.
 
@@ -352,7 +383,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 11. THE Audit_Service SHALL support audit trail export for regulatory compliance and external fairness audits
 12. THE Audit_Service SHALL log all AI confidence threshold adjustments with supporting analytical evidence
 
-### Requirement 18: Geographic and Jurisdictional Routing
+### Requirement 19: Geographic and Jurisdictional Routing
 
 **User Story:** As a government official, I want muddas to be routed to the appropriate jurisdiction based on location, so that issues reach the right authorities.
 
@@ -364,7 +395,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 4. WHEN a mudda spans multiple jurisdictions, THE Routing_Service SHALL notify all relevant authorities
 5. THE Routing_Service SHALL maintain a registry of officials and their jurisdictional responsibilities
 
-### Requirement 19: API Gateway and Rate Limiting
+### Requirement 20: API Gateway and Rate Limiting
 
 **User Story:** As a platform engineer, I want API access to be controlled and rate-limited, so that the system remains stable under high load and prevents abuse.
 
@@ -377,7 +408,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 5. THE API_Gateway SHALL route requests to appropriate microservices based on URL paths
 6. THE API_Gateway SHALL log all API requests with timestamps, user identifiers, and response codes
 
-### Requirement 20: Mobile and Web Client Support
+### Requirement 21: Mobile and Web Client Support
 
 **User Story:** As a platform user, I want to access Mudda through mobile apps and web browsers, so that I can participate from any device.
 
@@ -390,7 +421,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 5. THE Mobile_App SHALL support offline mode for viewing previously loaded muddas
 6. WHEN network connectivity is restored, THE Mobile_App SHALL sync any offline actions with the backend
 
-### Requirement 21: Multilingual and Code-Mixed Language Support
+### Requirement 22: Multilingual and Code-Mixed Language Support
 
 **User Story:** As a citizen in India, I want to create and interact with muddas in my preferred language including code-mixed text, so that language is not a barrier to civic participation.
 
@@ -409,7 +440,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 11. THE Platform SHALL maintain separate confidence thresholds for each supported language based on model performance
 12. WHEN a mudda is created in a regional language, THE Notification_Service SHALL deliver notifications in the same language
 
-### Requirement 22: AI Model Governance and Data Residency
+### Requirement 23: AI Model Governance and Data Residency
 
 **User Story:** As a compliance officer, I want all AI model usage to be governed with data residency controls, so that the platform complies with Indian data protection regulations.
 
@@ -429,7 +460,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 12. THE Platform SHALL provide configuration to restrict data processing to specific geographic boundaries
 13. WHEN data residency violations are detected, THE Compliance_Service SHALL alert administrators and block the operation
 
-### Requirement 23: Feedback Loops from Analytics to AI Policy
+### Requirement 24: Feedback Loops from Analytics to AI Policy
 
 **User Story:** As an AI system administrator, I want analytical insights to automatically improve AI decision-making, so that the system learns from real-world outcomes and human corrections.
 
@@ -448,7 +479,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 11. WHEN AI confidence thresholds are adjusted, THE Model_Registry SHALL log the change with supporting analytical evidence
 12. THE Analytical_Layer SHALL provide dashboards showing AI performance metrics over time including accuracy, precision, recall, and F1 scores
 
-### Requirement 24: Bias Detection and Fairness Monitoring
+### Requirement 25: Bias Detection and Fairness Monitoring
 
 **User Story:** As a platform administrator, I want to detect and mitigate bias in AI decisions, so that the platform treats all users and regions fairly.
 
@@ -468,7 +499,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 12. THE Platform SHALL conduct quarterly fairness audits with external review of AI decision patterns
 13. THE Fairness_Monitoring_Service SHALL flag muddas from historically underserved regions for priority review to prevent systemic bias
 
-### Requirement 25: India-Scale and Low-Bandwidth Resilience
+### Requirement 26: India-Scale and Low-Bandwidth Resilience
 
 **User Story:** As a citizen with intermittent internet connectivity, I want the platform to work reliably despite network issues, so that I can participate in civic engagement from anywhere in India.
 
@@ -851,6 +882,55 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 - False positive rate: <1%
 - Latency: <200ms for texts up to 5000 characters
 - Throughput: 500 requests per second
+
+### RAG Service
+
+**Purpose**: Provide contextual knowledge from rules, regulations, and historical resolution data to enhance Agentic AI decision-making and resolution planning
+
+**Knowledge Base Components**:
+- Civic rules and regulations (national, state, district, city levels)
+- Historical mudda resolutions with outcomes
+- Policy documents and compliance requirements
+- Best practices and standard operating procedures
+- Jurisdictional authority mappings
+
+**Inputs**:
+- Mudda content and metadata (category, location, description)
+- Query context from Agentic AI (resolution planning, compliance check, precedent search)
+- Jurisdiction information (city, district, state)
+- Civic domain category
+
+**Outputs**:
+- Top-k relevant documents with similarity scores
+- Extracted relevant text passages
+- Document metadata (source, jurisdiction, version, last updated)
+- Confidence score for retrieval relevance
+- Citations for auditability
+
+**Retrieval Strategy**:
+- Hybrid search combining semantic similarity (vector embeddings) and keyword matching
+- Jurisdiction-aware filtering (location-specific regulations)
+- Domain-specific retrieval (separate embeddings per civic category)
+- Temporal relevance (prioritize recent resolutions and current regulations)
+- Multilingual semantic search across all supported Indian languages
+
+**Performance Requirements**:
+- Retrieval latency: <500ms for top-10 results
+- Throughput: 200 queries per second
+- Semantic similarity accuracy: 85% relevance for top-3 results
+- Index update latency: <24 hours for new regulations
+- Storage: Support for 1 million+ indexed documents
+
+**Data Residency**:
+- All embeddings generated using self-hosted models within Indian data centers
+- Vector database hosted in Indian geographic regions
+- No external API calls for embedding generation in data residency mode
+
+**Auditability**:
+- Log all retrieval queries with timestamps
+- Log retrieved documents and relevance scores
+- Track document versions used in AI decisions
+- Maintain citation trail for regulatory compliance
 
 ### Analytics Feedback Service
 
