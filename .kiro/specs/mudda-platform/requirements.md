@@ -4,7 +4,7 @@
 
 Mudda is a large-scale civic-focused social media platform designed to empower citizens to raise public issues ("muddas"), discuss them collaboratively, propose solutions, and track their progress over time. Unlike traditional social platforms, Mudda employs an AI-driven backend to actively interpret, organize, review, and prioritize civic issues through an event-driven microservices architecture.
 
-The platform leverages Spring (Java) microservices on AWS Elastic Beanstalk, AWS SQS and EventBridge for event streaming, AWS Step Functions for durable workflow orchestration, and an agentic AI system with specialized AI microservices (AWS Lambda) for content analysis and categorization. The system separates transactional workloads (AWS RDS PostgreSQL) from analytical intelligence (Amazon Redshift), while providing user interfaces through Flutter mobile apps and Next.js web applications hosted on AWS S3 and CloudFront.
+The platform leverages Spring (Java) microservices on AWS Elastic Beanstalk, Amazon MSK (Managed Streaming for Apache Kafka) and EventBridge for event streaming, AWS Step Functions for durable workflow orchestration, and an agentic AI system with specialized AI microservices (AWS Lambda) for content analysis and categorization. The system separates transactional workloads (AWS RDS PostgreSQL) from analytical intelligence (Amazon Redshift), while providing user interfaces through Flutter mobile apps and Next.js web applications hosted on AWS S3 and CloudFront.
 
 ## 2. Goals and Success Criteria
 
@@ -54,14 +54,14 @@ The platform leverages Spring (Java) microservices on AWS Elastic Beanstalk, AWS
 - **OCR_Service**: Specialized AI microservice that extracts text from images and scanned documents
 - **RAG_Service**: Retrieval-Augmented Generation microservice that provides contextual knowledge from rules, regulations, and historical resolution data to enhance Agentic AI decision-making and DAG synthesis
 - **Step_Functions_Workflow**: Durable, fault-tolerant workflow orchestrated by AWS Step Functions with state management and retry capabilities
-- **SQS_Message**: Asynchronous message published to AWS SQS (Simple Queue Service)
+- **Kafka_Message**: Asynchronous message published to Amazon MSK (Managed Streaming for Apache Kafka)
 - **EventBridge_Event**: Event published to AWS EventBridge event bus for routing to multiple targets
 - **Transactional_Service**: Spring microservice deployed on AWS Elastic Beanstalk handling real-time user operations
 - **Lambda_Function**: Serverless function on AWS Lambda for event processing and background tasks
 - **Analytical_Layer**: Amazon Redshift-based intelligence layer for aggregated analytics and insights
 - **Human_In_The_Loop**: Manual intervention point in automated workflows requiring human judgment
 - **Tool_Calling**: Mechanism by which Agentic AI invokes specialized AI services as function calls
-- **Event_Sourcing**: Pattern where state changes are captured as messages in AWS SQS and events in EventBridge
+- **Event_Sourcing**: Pattern where state changes are captured as events in Amazon MSK and AWS EventBridge
 - **Workflow_Activity**: Individual step within an AWS Step Functions workflow that can be retried independently
 - **RDS_PostgreSQL**: AWS managed relational database service with Multi-AZ deployment
 - **ElastiCache_Redis**: AWS managed in-memory caching service

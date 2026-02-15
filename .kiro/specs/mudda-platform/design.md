@@ -20,7 +20,7 @@ The system handles the complete lifecycle of civic issues from creation through 
 The design follows several core architectural principles:
 
 **1. Event-Driven Architecture**  
-All state changes are represented as messages in AWS SQS and events in AWS EventBridge, enabling loose coupling, horizontal scalability, and complete audit trails. Services communicate asynchronously through events rather than synchronous calls, allowing the system to handle high throughput and tolerate transient failures.
+All state changes are represented as events in Amazon MSK (Managed Streaming for Apache Kafka) and AWS EventBridge, enabling loose coupling, horizontal scalability, and complete audit trails. Services communicate asynchronously through events rather than synchronous calls, allowing the system to handle high throughput and tolerate transient failures.
 
 **2. Separation of Concerns**  
 - **Transactional Services** (Spring Boot on AWS Elastic Beanstalk): Handle real-time user operations and data mutations
@@ -50,7 +50,7 @@ Configurable data residency with PII sanitization for external AI services ensur
 
 **Scalability**
 - Horizontal scaling with AWS Auto Scaling Groups
-- AWS SQS for parallel message processing
+- Amazon MSK for parallel message processing
 - AWS RDS PostgreSQL with Read Replicas
 - Auto-scaling based on CloudWatch metrics
 - AWS CloudFront CDN for media delivery
@@ -93,7 +93,7 @@ Configurable data residency with PII sanitization for external AI services ensur
 - AWS Lambda (serverless functions for event processing)
 
 **Event Streaming & Workflow**
-- AWS SQS (Simple Queue Service for message queuing)
+- Amazon MSK (Managed Streaming for Apache Kafka for event streaming)
 - AWS EventBridge (event bus for event-driven architecture)
 - AWS Step Functions (durable workflow orchestration)
 
@@ -126,7 +126,7 @@ Configurable data residency with PII sanitization for external AI services ensur
 **Communication**
 - AWS SES (Simple Email Service for notifications)
 - AWS SNS (Simple Notification Service for push notifications)
-- AWS SQS (message queuing)
+- Amazon MSK (Managed Streaming for Apache Kafka)
 
 **Observability**
 - Amazon CloudWatch (metrics, logs, and dashboards)
@@ -172,13 +172,13 @@ graph TB
     
     EventBridge["� AWS EVENTBRIDGE<br/>Event Bus<br/>━━━━━━━━━━━━━━━<br/>Event Routing & Filtering"]
     
-    SQS["📬 AWS SQS<br/>Message Queuing<br/>━━━━━━━━━━━━━━━<br/>Async Processing<br/>Dead Letter Queues"]
+    MSK["� AMAZON MSK<br/>Managed Kafka<br/>━━━━━━━━━━━━━━━<br/>Event Streaming<br/>Durable Message Storage"]
     
     StepFunctions["🔄 AWS STEP FUNCTIONS<br/>Workflow Orchestration<br/>━━━━━━━━━━━━━━━<br/>Resolution Planning<br/>Content Analysis Workflows"]
     
     subgraph AI["🤖 AI SERVICES"]
         direction LR
-        LambdaAI["⚡ Lambda Workers<br/>━━━━━━━━━━━━━━━<br/>• Language Detection<br/>• Hate Speech<br/>• NSFW Filtering<br/>• Duplication<br/>• Categorization<br/>• OCR"]
+        LambdaAI["⚡ Lambda Workers<br/>(Content Analysis)<br/>━━━━━━━━━━━━━━━<br/>• Language Detection<br/>• Hate Speech<br/>• NSFW Filtering<br/>• Duplication<br/>• Categorization<br/>• OCR"]
         AgenticAI["🧠 Agentic AI<br/>(EC2/Lambda)<br/>━━━━━━━━━━━━━━━<br/>• Resolution Planning<br/>• DAG Synthesis<br/>• Tool Calling<br/>• RAG Integration"]
     end
     
@@ -205,10 +205,10 @@ graph TB
     
     Beanstalk --> EventBridge
     Lambda --> EventBridge
-    EventBridge --> SQS
+    EventBridge --> MSK
     
-    SQS --> LambdaAI
-    SQS --> StepFunctions
+    MSK --> LambdaAI
+    MSK --> StepFunctions
     StepFunctions --> AgenticAI
     
     AgenticAI --> Bedrock
@@ -236,7 +236,7 @@ graph TB
     class Mobile,Web clientStyle
     class CloudFront,Gateway,Beanstalk,Lambda,StepFunctions awsStyle
     class Backend serviceStyle
-    class EventBridge,SQS eventStyle
+    class EventBridge,MSK eventStyle
     class LambdaAI,AgenticAI,AI,Bedrock,SageMaker aiStyle
     class Storage,RDS,ElastiCache,S3,OpenSearch storageStyle
     class Redshift analyticsStyle
@@ -248,7 +248,7 @@ graph TB
 - **Elastic Beanstalk**: Managed platform for Spring Boot services
 - **Lambda**: Serverless compute for AI workers and event processing
 - **EventBridge**: Event bus for event-driven architecture
-- **SQS**: Message queuing for async processing
+- **MSK**: Managed Streaming for Apache Kafka for event streaming
 - **Step Functions**: Durable workflow orchestration
 - **RDS PostgreSQL**: Managed relational database with Multi-AZ
 - **ElastiCache Redis**: In-memory caching
@@ -1035,14 +1035,28 @@ All state changes are captured as immutable events, providing:
 
 ### 2.7 AI Services Layer
 
+**Hosting Architecture:**
+- **Content Analysis Services**: AWS Lambda functions for serverless, event-driven processing
+- **Agentic AI Service**: AWS EC2 or Lambda (depending on workload) for resolution planning
+- **Event Source**: Amazon MSK (Managed Streaming for Apache Kafka)
+- **Orchestration**: AWS Step Functions for durable workflows
+- **Model Hosting**: Amazon SageMaker for custom models, Amazon Bedrock for managed LLMs
+
 The AI layer is divided into two main subsystems:
 
 1. **Content Analysis Workers** - Background services that consume Kafka events for immediate content analysis
 2. **Agentic AI System** - Orchestration layer for resolution planning and workflow execution
 
-#### 2.7.1 Content Analysis Workers (Background Processing)
+#### 2.7.1 Content Analysis Workers (AWS Lambda Functions)
 
-These services run as Kafka consumers, processing mudda creation events asynchronously:
+These services run as AWS Lambda functions that consume Kafka events from Amazon MSK, processing mudda creation events asynchronously:
+
+**Deployment:**
+- Each service deployed as separate Lambda function
+- Triggered by Amazon MSK event source mapping
+- Auto-scaling based on Kafka partition lag
+- Concurrent execution for parallel processing
+- CloudWatch monitoring and logging
 
 **Language Detection Service**
 - Identifies primary and secondary languages
