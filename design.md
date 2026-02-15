@@ -2732,7 +2732,7 @@ Configurable policy rules guide AI decision-making and are updated based on anal
 All Kafka topics follow a consistent naming convention:
 
 ```
-{domain}.{entity}.{event_type}
+{entity}.{event_type}
 
 Examples:
 - mudda.created
