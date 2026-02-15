@@ -11,7 +11,7 @@
 
 ### 1.1 System Purpose
 
-The Mudda platform is a large-scale, AI-driven civic engagement system designed to empower Indian citizens to raise, discuss, and track public issues ("muddas") at national scale. The platform combines event-driven microservices architecture with sophisticated AI orchestration to provide intelligent content analysis, moderation, categorization, and resolution planning while maintaining fairness, transparency, and compliance with Indian data protection regulations.
+The Mudda platform is a large-scale, AI-driven civic engagement system designed to empower Indian citizens to raise, discuss, and track public issues ("muddas") at national scale. The platform combines event-driven microservices architecture with sophisticated AI orchestration to provide intelligent content analysis, categorization, and resolution planning while maintaining fairness, transparency, and compliance with Indian data protection regulations.
 
 The system handles the complete lifecycle of civic issues from creation through resolution, leveraging agentic AI for intelligent workflow planning and execution, background workers for content analysis, and analytical intelligence for continuous improvement.
 
@@ -20,12 +20,12 @@ The system handles the complete lifecycle of civic issues from creation through 
 The design follows several core architectural principles:
 
 **1. Event-Driven Architecture**  
-All state changes are represented as immutable events in Apache Kafka, enabling loose coupling, horizontal scalability, and complete audit trails. Services communicate asynchronously through events rather than synchronous calls, allowing the system to handle high throughput and tolerate transient failures.
+All state changes are represented as messages in AWS SQS and events in AWS EventBridge, enabling loose coupling, horizontal scalability, and complete audit trails. Services communicate asynchronously through events rather than synchronous calls, allowing the system to handle high throughput and tolerate transient failures.
 
 **2. Separation of Concerns**  
-- **Transactional Services** (Spring Boot microservices): Handle real-time user operations and data mutations
-- **AI Services** (Python FastAPI microservices): Isolated AI processing with specialized models
-- **Workflow Orchestration** (Temporal.io): Durable, fault-tolerant workflow execution
+- **Transactional Services** (Spring Boot on AWS Elastic Beanstalk): Handle real-time user operations and data mutations
+- **AI Services** (Python FastAPI on AWS Lambda/EC2): Isolated AI processing with specialized models
+- **Workflow Orchestration** (AWS Step Functions): Durable, fault-tolerant workflow execution
 - **Analytical Intelligence** (Amazon Redshift): Aggregated analytics separated from transactional workloads
 
 **3. AI-First with Human Oversight**  
@@ -49,11 +49,11 @@ Configurable data residency with PII sanitization for external AI services ensur
 ### 1.3 Core Technical Principles
 
 **Scalability**
-- Horizontal scaling of all microservices
-- Kafka partitioning for parallel processing
-- Database sharding by region
-- Auto-scaling based on load metrics
-- CDN for media delivery
+- Horizontal scaling with AWS Auto Scaling Groups
+- AWS SQS for parallel message processing
+- AWS RDS PostgreSQL with Read Replicas
+- Auto-scaling based on CloudWatch metrics
+- AWS CloudFront CDN for media delivery
 
 **Resilience**
 - Circuit breakers to prevent cascading failures
@@ -63,11 +63,11 @@ Configurable data residency with PII sanitization for external AI services ensur
 - Queue buffering for intermittent connectivity
 
 **Observability**
-- Distributed tracing across all services
-- Centralized logging with structured logs
-- Real-time metrics and dashboards
-- AI performance monitoring
-- Alerting for critical errors and degradation
+- AWS X-Ray for distributed tracing
+- Amazon CloudWatch for centralized logging
+- CloudWatch Metrics for real-time monitoring
+- CloudWatch Dashboards for AI performance monitoring
+- CloudWatch Alarms for critical errors and degradation
 
 **Compliance**
 - End-to-end encryption (TLS 1.3)
@@ -82,40 +82,63 @@ Configurable data residency with PII sanitization for external AI services ensur
 **Frontend**
 - Flutter (iOS/Android mobile applications)
 - Next.js (React-based web application with SSR)
+- AWS CloudFront (CDN for global content delivery)
+- AWS S3 (static website hosting)
 
 **Backend Services**
 - Spring Boot 3.x (Java 17) for transactional microservices
 - FastAPI (Python 3.11+) for AI microservices
-- Spring Cloud Gateway for API gateway
+- AWS Elastic Beanstalk (application deployment and scaling)
+- AWS API Gateway (API management and routing)
+- AWS Lambda (serverless functions for event processing)
 
 **Event Streaming & Workflow**
-- Apache Kafka 3.x for event streaming
-- Temporal.io for durable workflow orchestration
+- AWS SQS (Simple Queue Service for message queuing)
+- AWS EventBridge (event bus for event-driven architecture)
+- AWS Step Functions (durable workflow orchestration)
+
+**Compute**
+- AWS EC2 (virtual servers for microservices)
+- AWS Lambda (serverless compute for background workers)
+- AWS Elastic Beanstalk (managed application platform)
 
 **Data Storage**
-- PostgreSQL 15+ (transactional databases, sharded by region)
-- Redis 7+ (caching layer)
-- Amazon S3 / MinIO (object storage for media)
+- AWS RDS PostgreSQL (transactional databases with Multi-AZ)
+- AWS ElastiCache Redis (caching layer)
+- AWS S3 (object storage for media files)
+- AWS S3 with vector embeddings (RAG vector storage)
 - Amazon Redshift (analytical data warehouse)
-- Vector Database (Pinecone/Weaviate/Qdrant for RAG embeddings)
+- Amazon OpenSearch Service (full-text search and analytics)
 
 **AI/ML**
+- Amazon Bedrock (managed LLM APIs - Claude, Llama)
+- Amazon SageMaker (model hosting and fine-tuning)
 - LangChain / LlamaIndex for agentic AI orchestration
-- Managed LLM APIs (OpenAI, Anthropic, Azure OpenAI)
-- Self-hosted models (Llama 3, Mistral) for data residency
 - Hugging Face Transformers for specialized models
 - Sentence Transformers for embeddings
 
+**Security & Compliance**
+- AWS ACM (Certificate Manager for SSL/TLS)
+- AWS IAM (Identity and Access Management)
+- AWS Secrets Manager (credentials management)
+- AWS KMS (Key Management Service for encryption)
+
+**Communication**
+- AWS SES (Simple Email Service for notifications)
+- AWS SNS (Simple Notification Service for push notifications)
+- AWS SQS (message queuing)
+
 **Observability**
-- Prometheus + Grafana (metrics and dashboards)
-- ELK Stack (Elasticsearch, Logstash, Kibana) for logging
-- Jaeger (distributed tracing with OpenTelemetry)
+- Amazon CloudWatch (metrics, logs, and dashboards)
+- AWS X-Ray (distributed tracing)
+- CloudWatch Logs Insights (log analytics)
 
 **Infrastructure**
-- Kubernetes (EKS/GKE/AKS) for container orchestration
-- Terraform for infrastructure as code
-- GitHub Actions / GitLab CI for CI/CD
-- CloudFront / CloudFlare for CDN
+- AWS CloudFormation (infrastructure as code)
+- AWS CDK (Cloud Development Kit)
+- AWS CodePipeline (CI/CD)
+- AWS CodeBuild (build automation)
+- AWS CloudFront (CDN)
 
 ---
 
@@ -125,9 +148,9 @@ Configurable data residency with PII sanitization for external AI services ensur
 
 The system architecture is presented through five focused diagrams, each highlighting a specific aspect of the platform. These diagrams are designed to be investor-friendly, team-friendly, and documentation-friendly, providing clear views of different architectural concerns.
 
-#### Diagram 1: High-Level System Architecture
+#### Diagram 1: High-Level System Architecture (AWS Stack)
 
-This diagram shows the overall system structure with major layers and components.
+This diagram shows the overall system structure with AWS services.
 
 ```mermaid
 graph TB
@@ -136,72 +159,104 @@ graph TB
         Web["🌐 Web App<br/>(Next.js)"]
     end
     
-    Gateway["🚪 API Gateway<br/>(Spring Cloud Gateway)<br/>━━━━━━━━━━━━━━━<br/>Auth • Rate Limiting • Routing"]
+    CloudFront["☁️ AWS CLOUDFRONT<br/>CDN & Edge Caching<br/>━━━━━━━━━━━━━━━<br/>Global Content Delivery"]
     
-    subgraph Backend["⚙️ BACKEND SERVICES (Spring Boot)"]
-        Services["• Authentication<br/>• Mudda Management<br/>• Comments<br/>• Media<br/>• Search<br/>• Notifications<br/>• Engagement<br/>• Routing<br/>• Moderation"]
+    Gateway["🚪 AWS API GATEWAY<br/>━━━━━━━━━━━━━━━<br/>Auth • Rate Limiting • Routing<br/>SSL/TLS (ACM)"]
+    
+    subgraph Backend["⚙️ BACKEND SERVICES"]
+        direction TB
+        Beanstalk["🌱 AWS ELASTIC BEANSTALK<br/>━━━━━━━━━━━━━━━<br/>• Spring Boot Services<br/>• Auto Scaling<br/>• Load Balancing<br/>• Health Monitoring"]
+        
+        Lambda["⚡ AWS LAMBDA<br/>━━━━━━━━━━━━━━━<br/>• Serverless Functions<br/>• Event Processing<br/>• Background Workers"]
     end
     
-    Kafka["📨 KAFKA<br/>Event Streaming Backbone<br/>━━━━━━━━━━━━━━━<br/>Topics: mudda.created,<br/>analysis_completed, etc."]
+    EventBridge["� AWS EVENTBRIDGE<br/>Event Bus<br/>━━━━━━━━━━━━━━━<br/>Event Routing & Filtering"]
     
-    Temporal["🔄 TEMPORAL.IO<br/>Workflow Orchestration<br/>━━━━━━━━━━━━━━━<br/>Resolution Planning<br/>Moderation Workflows"]
+    SQS["📬 AWS SQS<br/>Message Queuing<br/>━━━━━━━━━━━━━━━<br/>Async Processing<br/>Dead Letter Queues"]
     
-    subgraph AI["🤖 AI SERVICES (Python FastAPI)"]
+    StepFunctions["🔄 AWS STEP FUNCTIONS<br/>Workflow Orchestration<br/>━━━━━━━━━━━━━━━<br/>Resolution Planning<br/>Content Analysis Workflows"]
+    
+    subgraph AI["🤖 AI SERVICES"]
         direction LR
-        ContentWorkers["📊 Content Analysis<br/>Workers<br/>━━━━━━━━━━━━━━━<br/>• Language Detection<br/>• Hate Speech<br/>• NSFW Filtering<br/>• Duplication<br/>• Categorization<br/>• OCR"]
-        AgenticAI["🧠 Agentic AI<br/>System<br/>━━━━━━━━━━━━━━━<br/>• Resolution Planning<br/>• DAG Synthesis<br/>• Tool Calling<br/>• RAG Integration"]
+        LambdaAI["⚡ Lambda Workers<br/>━━━━━━━━━━━━━━━<br/>• Language Detection<br/>• Hate Speech<br/>• NSFW Filtering<br/>• Duplication<br/>• Categorization<br/>• OCR"]
+        AgenticAI["🧠 Agentic AI<br/>(EC2/Lambda)<br/>━━━━━━━━━━━━━━━<br/>• Resolution Planning<br/>• DAG Synthesis<br/>• Tool Calling<br/>• RAG Integration"]
     end
     
-    subgraph Storage["💾 STORAGE"]
+    subgraph Storage["� AWS STORAGE"]
         direction LR
-        Postgres[("🗄️ PostgreSQL<br/>Transactional")]
-        Redis[("⚡ Redis<br/>Cache")]
-        S3[("📦 S3<br/>Media")]
-        Vector[("🔢 Vector DB<br/>RAG")]
+        RDS[("🗄️ RDS PostgreSQL<br/>Multi-AZ<br/>Read Replicas")]
+        ElastiCache[("⚡ ElastiCache<br/>Redis<br/>Caching")]
+        S3[("📦 S3<br/>Media Storage<br/>Vector Embeddings")]
+        OpenSearch[("🔍 OpenSearch<br/>Full-text Search")]
     end
     
-    Redshift["📈 REDSHIFT<br/>Analytics & Feedback<br/>━━━━━━━━━━━━━━━<br/>Performance Metrics<br/>Bias Detection<br/>Threshold Tuning"]
+    Redshift["📈 AMAZON REDSHIFT<br/>Analytics & Feedback<br/>━━━━━━━━━━━━━━━<br/>Performance Metrics<br/>Bias Detection<br/>Threshold Tuning"]
     
-    LLM["🌐 LLM APIs<br/>━━━━━━━━━━━━━━━<br/>OpenAI • Anthropic<br/>Self-Hosted Models"]
+    Bedrock["🤖 AMAZON BEDROCK<br/>━━━━━━━━━━━━━━━<br/>Claude • Llama<br/>Managed LLM APIs"]
+    
+    SageMaker["🧪 AMAZON SAGEMAKER<br/>━━━━━━━━━━━━━━━<br/>Model Hosting<br/>Fine-tuning"]
     
     %% Connections
-    Mobile --> Gateway
-    Web --> Gateway
-    Gateway --> Backend
-    Backend --> Kafka
-    Kafka --> ContentWorkers
-    Kafka --> Temporal
-    Temporal --> AgenticAI
-    AgenticAI --> LLM
-    Backend --> Storage
-    Kafka --> Redshift
+    Mobile --> CloudFront
+    Web --> CloudFront
+    CloudFront --> Gateway
+    Gateway --> Beanstalk
+    Gateway --> Lambda
+    
+    Beanstalk --> EventBridge
+    Lambda --> EventBridge
+    EventBridge --> SQS
+    
+    SQS --> LambdaAI
+    SQS --> StepFunctions
+    StepFunctions --> AgenticAI
+    
+    AgenticAI --> Bedrock
+    AgenticAI --> SageMaker
+    
+    Beanstalk --> RDS
+    Beanstalk --> ElastiCache
+    Beanstalk --> S3
+    Beanstalk --> OpenSearch
+    
+    Lambda --> RDS
+    Lambda --> S3
+    
+    EventBridge --> Redshift
     Redshift -.->|Feedback| AgenticAI
     
     classDef clientStyle fill:#e1f5ff,stroke:#01579b,stroke-width:2px
-    classDef gatewayStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef awsStyle fill:#ff9900,stroke:#232f3e,stroke-width:3px
     classDef serviceStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef kafkaStyle fill:#fff9c4,stroke:#f57f17,stroke-width:3px
+    classDef eventStyle fill:#fff9c4,stroke:#f57f17,stroke-width:3px
     classDef aiStyle fill:#ffebee,stroke:#b71c1c,stroke-width:2px
     classDef storageStyle fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px
     classDef analyticsStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
     
     class Mobile,Web clientStyle
-    class Gateway gatewayStyle
-    class Backend,Services serviceStyle
-    class Kafka kafkaStyle
-    class ContentWorkers,AgenticAI,AI aiStyle
-    class Storage,Postgres,Redis,S3,Vector storageStyle
+    class CloudFront,Gateway,Beanstalk,Lambda,StepFunctions awsStyle
+    class Backend serviceStyle
+    class EventBridge,SQS eventStyle
+    class LambdaAI,AgenticAI,AI,Bedrock,SageMaker aiStyle
+    class Storage,RDS,ElastiCache,S3,OpenSearch storageStyle
     class Redshift analyticsStyle
 ```
 
-**Key Points:**
-- Clients interact via API Gateway
-- Backend Services handle transactional operations
-- Kafka enables event-driven architecture
-- AI Services process content and plan resolutions
-- Temporal orchestrates durable workflows
-- Storage layer separates concerns (transactional, cache, media, vectors)
-- Redshift provides analytics and feedback loops
+**Key AWS Services:**
+- **CloudFront**: Global CDN for low-latency content delivery
+- **API Gateway**: Managed API with authentication and rate limiting
+- **Elastic Beanstalk**: Managed platform for Spring Boot services
+- **Lambda**: Serverless compute for AI workers and event processing
+- **EventBridge**: Event bus for event-driven architecture
+- **SQS**: Message queuing for async processing
+- **Step Functions**: Durable workflow orchestration
+- **RDS PostgreSQL**: Managed relational database with Multi-AZ
+- **ElastiCache Redis**: In-memory caching
+- **S3**: Object storage for media and vector embeddings
+- **OpenSearch**: Full-text search and analytics
+- **Redshift**: Data warehouse for analytics and feedback loops
+- **Bedrock**: Managed LLM APIs (Claude, Llama)
+- **SageMaker**: Model hosting and fine-tuning
 
 #### Diagram 2: Agentic AI Internal Design
 
@@ -237,7 +292,6 @@ graph TB
         direction LR
         Decision["📋 Decision<br/>Planning"]
         Policy["⚖️ Policy &<br/>Compliance"]
-        Routing["🗺️ Routing"]
         Escalation["🚨 Escalation"]
         Evidence["📑 Evidence"]
         Impact["📊 Impact"]
@@ -247,7 +301,9 @@ graph TB
     
     AILogging["📝 AI Logging<br/>━━━━━━━━━━━━━━━<br/>• Prompt History<br/>• Audit Trail<br/>• Memory Layer<br/>• RLHF Data"]
     
-    LLM["🌐 LLM APIs<br/>━━━━━━━━━━━━━━━<br/>• GPT-4<br/>• Claude 3<br/>• Self-Hosted<br/>• Fine-tuned Models"]
+    LLM["🤖 AMAZON BEDROCK<br/>━━━━━━━━━━━━━━━<br/>• Claude 3<br/>• Llama 3<br/>• Managed APIs<br/>• Fine-tuned Models"]
+    
+    SageMaker["🧪 SAGEMAKER<br/>━━━━━━━━━━━━━━━<br/>• Custom Models<br/>• Model Hosting<br/>• Inference Endpoints"]
     
     subgraph HumanLoop["👥 HUMAN-IN-THE-LOOP (RLHF)"]
         direction TB
@@ -272,6 +328,8 @@ graph TB
     LLMEngine --> PII
     PII --> LLM
     LLM --> LLMEngine
+    LLMEngine --> SageMaker
+    SageMaker --> LLMEngine
     
     LLMEngine --> Evaluator
     Evaluator --> ConfidenceScoring
@@ -291,7 +349,7 @@ graph TB
     
     %% Tool Execution
     LLMEngine --> ToolRegistry
-    ToolRegistry --> ExternalServices["🔧 External Services<br/>━━━━━━━━━━━━━━━<br/>Notification<br/>Routing<br/>Escalation"]
+    ToolRegistry --> ExternalServices["🔧 External Services<br/>━━━━━━━━━━━━━━━<br/>Notification<br/>Escalation"]
     
     %% Memory Management
     Planner --> Memory
@@ -318,8 +376,8 @@ graph TB
     
     class Planner,LLMEngine,ToolRegistry,Evaluator,ConfidenceScoring,Memory coreStyle
     class RAG,PII,AILogging supportStyle
-    class Agents,Decision,Policy,Routing,Escalation,Evidence,Impact,Engagement,Reflection agentStyle
-    class LLM,ExternalServices externalStyle
+    class Agents,Decision,Policy,Escalation,Evidence,Impact,Engagement,Reflection agentStyle
+    class LLM,SageMaker,ExternalServices externalStyle
     class GovOfficial,StaffWorkers,HumanLoop humanStyle
     class IssuesAPI apiStyle
     class Output,ActionPlan outputStyle
@@ -342,7 +400,7 @@ graph TB
 - **AI Logging**: Captures prompts, audit trails, and RLHF training data
 
 **Specialized Agents:**
-- Domain-specific reasoning modules for decision planning, policy compliance, routing, escalation, evidence structuring, impact measurement, engagement, and reflection
+- Domain-specific reasoning modules for decision planning, policy compliance, escalation, evidence structuring, impact measurement, engagement, and reflection
 
 **Human-in-the-Loop (RLHF):**
 - **Government Officials**: Review plans, edit actions, approve/reject, provide feedback for RLHF training
@@ -424,7 +482,7 @@ sequenceDiagram
         
     else Content Flagged
         MuddaService->>MuddaService: status = UNDER_REVIEW
-        Kafka->>Temporal: Initiate Moderation Workflow
+        Kafka->>Temporal: Initiate Human Review Workflow
     end
     
     classDef userStyle fill:#e1f5ff,stroke:#01579b
@@ -445,7 +503,7 @@ sequenceDiagram
 4. If Clean → Temporal triggers resolution planning
 5. Agentic AI → Queries RAG, generates plan via LLM
 6. Confidence Check → Auto-execute or escalate to human
-7. If Flagged → Moderation workflow initiated
+7. If Flagged → Human review workflow initiated
 
 #### Diagram 4: Data & Analytics Flow
 
@@ -468,9 +526,9 @@ graph TB
     subgraph Redshift["🏢 AMAZON REDSHIFT"]
         direction TB
         
-        FactTables["📋 Fact Tables<br/>━━━━━━━━━━━━━━━<br/>• fact_mudda_analysis<br/>• fact_moderation_decision<br/>• fact_engagement<br/>• fact_resolution_plan"]
+        FactTables["📋 Fact Tables<br/>━━━━━━━━━━━━━━━<br/>• fact_mudda_analysis<br/>• fact_engagement<br/>• fact_resolution_plan"]
         
-        DimTables["📊 Dimension Tables<br/>━━━━━━━━━━━━━━━<br/>• dim_mudda<br/>• dim_user<br/>• dim_category<br/>• dim_jurisdiction<br/>• dim_date"]
+        DimTables["📊 Dimension Tables<br/>━━━━━━━━━━━━━━━<br/>• dim_mudda<br/>• dim_user<br/>• dim_category<br/>• dim_date"]
         
         AggViews["📈 Aggregated Views<br/>━━━━━━━━━━━━━━━<br/>• ai_performance_by_language<br/>• ai_performance_by_region<br/>• mudda_trends<br/>• bias_metrics"]
     end
@@ -672,9 +730,9 @@ graph TB
 
 **Key Features:**
 - Full platform functionality accessible via browser
-- Admin and moderator dashboards
+- Admin and reviewer dashboards
 - Analytics and reporting interfaces
-- Bulk moderation tools
+- Bulk content review tools
 - Advanced search and filtering
 
 **Technology:**
@@ -726,7 +784,7 @@ graph TB
 /api/v1/notifications/** → Notification Service
 ```
 
-### 2.4 Backend Services (Spring Boot Microservices)
+### 2.4 Backend Services
 
 #### 2.4.1 Authentication Service
 
@@ -768,9 +826,9 @@ graph TB
 **Status Lifecycle:**
 ```
 PENDING_ANALYSIS → UNDER_REVIEW (flagged by AI)
-UNDER_REVIEW → ACTIVE (approved by moderator)
-UNDER_REVIEW → HIDDEN (rejected by moderator)
-ACTIVE → ACKNOWLEDGED (official response)
+UNDER_REVIEW → ACTIVE (approved by reviewer)
+UNDER_REVIEW → HIDDEN (rejected by reviewer)
+ACTIVE → ACKNOWLEDGED (response received)
 ACKNOWLEDGED → RESOLVED (issue resolved)
 ```
 
@@ -786,7 +844,7 @@ ACKNOWLEDGED → RESOLVED (issue resolved)
 **Responsibilities:**
 - Comment creation and retrieval
 - Threaded discussion support (max depth: 5 levels)
-- Comment moderation
+- Comment review and filtering
 - Event emission to Kafka
 
 **Data Model:**
@@ -874,8 +932,8 @@ ACKNOWLEDGED → RESOLVED (issue resolved)
 **Notification Types:**
 - Mudda status updates
 - New comments on followed muddas
-- Official responses
-- Moderation decisions
+- Responses from authorities
+- Content review decisions
 - Duplicate suggestions
 
 **Delivery Channels:**
@@ -895,34 +953,6 @@ ACKNOWLEDGED → RESOLVED (issue resolved)
 - Upvote (upvoteId, muddaId, userId, timestamp)
 - Follow (followId, muddaId, userId, timestamp)
 
-#### 2.4.8 Routing Service
-
-**Responsibilities:**
-- Determine jurisdictional authorities based on location
-- Hierarchical jurisdiction support (city → district → state → national)
-- Notify officials registered for jurisdictions
-- Escalation from local to regional to national levels
-
-**Data Model:**
-- Jurisdiction (jurisdictionId, name, type, parentJurisdictionId, boundaries)
-- Official (officialId, name, email, jurisdictionId, role)
-
-#### 2.4.9 Moderation Service
-
-**Responsibilities:**
-- Human moderation interface
-- Moderation decision recording
-- Moderator assignment based on language expertise
-- Moderation queue management
-- Override and correction tracking
-
-**Data Model:**
-- ModerationTask (taskId, muddaId, assignedModeratorId, status, priority, languageCode)
-- ModerationDecision (decisionId, taskId, decision, reasoning, timestamp)
-
-**Kafka Events Emitted:**
-- moderation.decision
-- moderation.override (for feedback loops)
 
 ### 2.5 Event Streaming Backbone (Apache Kafka)
 
@@ -941,8 +971,6 @@ ACKNOWLEDGED → RESOLVED (issue resolved)
 - `mudda.duplicates_found` - Duplicate detection results
 - `comment.created` - New comments
 - `media.uploaded` - Media upload completion
-- `moderation.decision` - Human moderation decisions
-- `moderation.override` - Corrections for feedback loops
 - `notification.dispatch` - Notification requests
 - `analytics.event` - Events for analytical ingestion
 
@@ -975,25 +1003,25 @@ All state changes are captured as immutable events, providing:
    - Triggered when mudda transitions to ACTIVE status
    - Orchestrates Agentic AI for resolution planning
    - Manages human-in-the-loop tasks
-   - Handles tool calling to Notification, Routing, Escalation services
+   - Handles tool calling to Notification and Escalation services
    - Emits resolution plan DAG
 
-2. **Moderation Workflow**
+2. **Content Review Workflow**
    - Triggered when content flagged for review
-   - Assigns to language-appropriate moderator
+   - Assigns to language-appropriate reviewer
    - Waits for human decision (asynchronous)
-   - Applies moderation decision
+   - Applies review decision
    - Emits correction events for feedback loops
 
 3. **Escalation Workflow**
    - Triggered by high-priority or urgent issues
-   - Notifies designated administrators and officials
+   - Notifies designated administrators
    - Tracks acknowledgment and response
    - Updates mudda status
 
 **Workflow Activities:**
 - AI evaluation activity (calls Agentic AI Service)
-- Human review activity (creates moderation task, waits for completion)
+- Human review activity (creates review task, waits for completion)
 - Notification activity (sends notifications)
 - Persistence activity (updates database)
 - RAG query activity (retrieves context)
@@ -1099,8 +1127,6 @@ Each microservice has its own PostgreSQL database for data isolation and indepen
 - mudda_db (muddas, media_attachments)
 - comment_db (comments)
 - engagement_db (upvotes, follows)
-- moderation_db (moderation_tasks, decisions)
-- routing_db (jurisdictions, officials)
 
 
 **Sharding Strategy:**
@@ -1206,7 +1232,6 @@ media/
 
 **Fact Tables:**
 - fact_mudda_analysis (mudda_id, hate_speech_score, nsfw_score, categories, language, timestamp)
-- fact_moderation_decision (decision_id, mudda_id, moderator_id, decision, timestamp)
 - fact_engagement (event_id, mudda_id, user_id, action_type, timestamp)
 - fact_resolution_plan (plan_id, mudda_id, dag_json, execution_status, timestamp)
 
@@ -1214,7 +1239,6 @@ media/
 - dim_mudda (mudda_id, title, description, status, location, created_at)
 - dim_user (user_id, language, region, registration_date)
 - dim_category (category_id, category_name, domain)
-- dim_jurisdiction (jurisdiction_id, name, type, parent_id)
 - dim_date (date_id, date, day, month, year, quarter)
 
 **Aggregated Views:**
@@ -2541,9 +2565,9 @@ Human review is triggered by multiple conditions to ensure quality and complianc
    - Requires human verification
 
 
-#### 3.5.2 Moderator UI Integration
+#### 3.5.2 Content Review UI Integration
 
-The Moderation Service provides a web-based interface for human reviewers to evaluate AI decisions and provide corrections.
+The platform provides a web-based interface for human reviewers to evaluate AI decisions and provide corrections.
 
 **Dashboard Features:**
 
@@ -2583,7 +2607,6 @@ The Moderation Service provides a web-based interface for human reviewers to eva
 - Full text of relevant regulations
 - Highlighting of applicable sections
 - Cross-references and precedents
-- Jurisdiction-specific rules
 
 **7. Performance Metrics**
 - Reviewer accuracy (agreement with outcomes)
@@ -2692,7 +2715,6 @@ All human decisions are captured with detailed reasoning to enable feedback loop
 - **Plan Incorrect:** Wrong approach
 - **Parameter Error:** Wrong tool parameters
 - **Regulation Misinterpretation:** Incorrect legal interpretation
-- **Jurisdiction Error:** Wrong routing
 - **Priority Misjudgment:** Wrong urgency assessment
 
 ### 3.6 AI Feedback & Continuous Learning Loop
@@ -2706,7 +2728,7 @@ All AI decisions, human corrections, and outcomes are ingested into Redshift for
 **Data Flow:**
 ```
 1. AI makes decision → logged to AI Logging Service
-2. Human reviews → correction logged to Moderation Service
+2. Human reviews → correction logged to Review Service
 3. Outcome tracked → resolution success/failure logged
 4. All events → Kafka → Redshift (via Kafka Connect)
 5. Analytics Feedback Service queries Redshift
@@ -3173,14 +3195,11 @@ def process_event(event: Event):
 **Media Service:**
 - Produces: media.uploaded, media.processed
 
-**Moderation Service:**
-- Produces: moderation.decision, moderation.override
-
 **Agentic AI Service:**
 - Produces: mudda.resolution_planned
 
 **Background AI Workers:**
-- Produce: mudda.categorized, mudda.duplicates_found, moderation.flagged
+- Produce: mudda.categorized, mudda.duplicates_found, content.flagged
 
 #### 4.2.2 Event Consumers
 
@@ -3200,7 +3219,7 @@ def process_event(event: Event):
 - Consume: ALL topics (via Kafka Connect to Redshift)
 
 **Analytics Feedback Service:**
-- Consume: moderation.override (for feedback loops)
+- Consume: content.flagged (for feedback loops)
 
 #### 4.2.3 Retry and Dead-Letter Queue Strategy
 
