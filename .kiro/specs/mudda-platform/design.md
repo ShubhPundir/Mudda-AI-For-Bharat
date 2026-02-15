@@ -1441,28 +1441,11 @@ The Agentic AI Service is built as a multi-agent orchestration system that uses 
 6. **Completeness:** Plan addresses the mudda's core issue
 
 **Validation Process:**
-```python
-def evaluate_plan(plan: ResolutionPlan) -> EvaluationResult:
-    # 1. Structural validation
-    if has_cycles(plan.dag):
-        return EvaluationResult(valid=False, reason="DAG contains cycles")
-    
-    # 2. Tool validation
-    for node in plan.dag.nodes:
-        if not tool_registry.exists(node.tool):
-            return EvaluationResult(valid=False, reason=f"Tool {node.tool} not found")
-    
-    # 3. Parameter validation
-    for node in plan.dag.nodes:
-        if not validate_parameters(node.tool, node.parameters):
-            return EvaluationResult(valid=False, reason="Invalid parameters")
-    
-    # 4. Policy compliance
-    if not policy_engine.check_compliance(plan):
-        return EvaluationResult(valid=False, reason="Policy violation")
-    
-    return EvaluationResult(valid=True, confidence=plan.confidence)
-```
+1. **Structural validation:** Check DAG for cycles
+2. **Tool validation:** Verify all tools exist in registry
+3. **Parameter validation:** Validate tool parameters against schemas
+4. **Policy compliance:** Check plan against policy rules
+5. Return validation result with confidence score
 
 **Rejection Handling:**
 - Invalid plans rejected with detailed error messages
@@ -1484,29 +1467,13 @@ def evaluate_plan(plan: ResolutionPlan) -> EvaluationResult:
 6. **Ambiguity Detection:** Presence of conflicting regulations or unclear requirements
 
 **Confidence Calculation:**
-```python
-def calculate_confidence(
-    llm_confidence: float,
-    rag_relevance: float,
-    plan_complexity: int,
-    historical_success_rate: float,
-    language_confidence: float
-) -> float:
-    # Weighted average with complexity penalty
-    base_confidence = (
-        0.3 * llm_confidence +
-        0.25 * rag_relevance +
-        0.25 * historical_success_rate +
-        0.2 * language_confidence
-    )
-    
-    # Complexity penalty (more steps = lower confidence)
-    complexity_penalty = min(0.1 * (plan_complexity - 3), 0.3)
-    
-    final_confidence = max(0.0, base_confidence - complexity_penalty)
-    
-    return final_confidence
-```
+- Weighted average of multiple factors:
+  - LLM confidence (30%)
+  - RAG relevance (25%)
+  - Historical success rate (25%)
+  - Language confidence (20%)
+- Apply complexity penalty for plans with many steps
+- Final score ranges from 0.0 to 1.0
 
 **Confidence Thresholds:**
 - **High Confidence (≥ 0.8):** Auto-approve and execute plan
@@ -1712,43 +1679,15 @@ def calculate_confidence(
 - Compress historical context
 
 **Context Window Management:**
-```python
-def assemble_context(
-    mudda: Mudda,
-    rag_results: List[Document],
-    agent_outputs: List[AgentOutput],
-    max_tokens: int = 8000
-) -> str:
-    # Priority order
-    context_parts = [
-        ("system_prompt", 500),
-        ("mudda_content", 1000),
-        ("rag_regulations", 2000),
-        ("rag_cases", 1500),
-        ("agent_outputs", 2000),
-        ("tool_schemas", 1000)
-    ]
-    
-    assembled_context = ""
-    remaining_tokens = max_tokens
-    
-    for part_name, max_part_tokens in context_parts:
-        part_content = get_context_part(part_name)
-        part_tokens = count_tokens(part_content)
-        
-        if part_tokens <= min(max_part_tokens, remaining_tokens):
-            assembled_context += part_content
-            remaining_tokens -= part_tokens
-        else:
-            # Truncate or summarize
-            assembled_context += truncate_or_summarize(
-                part_content, 
-                min(max_part_tokens, remaining_tokens)
-            )
-            break
-    
-    return assembled_context
-```
+- Prioritize context parts in order of importance:
+  1. System prompt (500 tokens)
+  2. Mudda content (1000 tokens)
+  3. RAG regulations (2000 tokens)
+  4. RAG cases (1500 tokens)
+  5. Agent outputs (2000 tokens)
+  6. Tool schemas (1000 tokens)
+- Track remaining tokens in context window (max 8000)
+- Truncate or summarize lower-priority parts if needed
 
 ### 3.2 LLM Reasoning & Tool Calling
 
@@ -1852,25 +1791,15 @@ The Agentic AI Service uses function calling (tool calling) to interact with ext
 - Reject invalid calls with error message
 
 **Tool Call Execution:**
-```python
-async def execute_tool_call(tool_call: ToolCall) -> ToolResult:
-    # 1. Validate
-    tool_schema = tool_registry.get_schema(tool_call.tool)
-    if not validate_parameters(tool_call.parameters, tool_schema):
-        return ToolResult(success=False, error="Invalid parameters")
-    
-    # 2. Execute
-    try:
-        service_url = tool_registry.get_service_url(tool_call.tool)
-        response = await http_client.post(
-            service_url,
-            json=tool_call.parameters,
-            timeout=30.0
-        )
-        return ToolResult(success=True, data=response.json())
-    except Exception as e:
-        return ToolResult(success=False, error=str(e))
-```
+1. Validate tool call:
+   - Check tool exists in registry
+   - Validate parameters against schema
+   - Verify required parameters present
+2. Execute tool call:
+   - Get service URL from registry
+   - Send HTTP POST with parameters
+   - Set timeout (30 seconds)
+   - Return result or error
 
 **Error Handling:**
 - Tool unavailable → retry with exponential backoff
@@ -1883,51 +1812,16 @@ async def execute_tool_call(tool_call: ToolCall) -> ToolResult:
 Complex resolution plans require multiple reasoning steps and tool calls. The Agentic AI Service orchestrates multi-step workflows using a loop:
 
 **Multi-Step Loop:**
-```python
-async def execute_resolution_workflow(mudda: Mudda) -> ResolutionPlan:
-    # 1. Initialize context
-    context = initialize_context(mudda)
-    
-    # 2. Query RAG for context
-    rag_results = await rag_service.query(mudda)
-    context.add_rag_results(rag_results)
-    
-    # 3. Multi-step reasoning loop
-    max_steps = 10
-    for step in range(max_steps):
-        # 3a. Assemble context for LLM
-        prompt = assemble_prompt(context)
-        
-        # 3b. Invoke LLM
-        llm_response = await llm_inference_engine.generate(prompt)
-        
-        # 3c. Parse response
-        if llm_response.contains_tool_call():
-            # Execute tool call
-            tool_result = await execute_tool_call(llm_response.tool_call)
-            context.add_tool_result(tool_result)
-            
-            # Continue loop with tool result
-            continue
-        
-        elif llm_response.contains_plan():
-            # Plan generated, validate and return
-            plan = parse_plan(llm_response.plan)
-            if validate_plan(plan):
-                return plan
-            else:
-                # Invalid plan, prompt for correction
-                context.add_error("Plan validation failed")
-                continue
-        
-        else:
-            # Unexpected response
-            context.add_error("Unexpected LLM response")
-            continue
-    
-    # Max steps reached without valid plan
-    raise MaxStepsExceededError()
-```
+1. Initialize context with mudda data
+2. Query RAG service for relevant regulations and cases
+3. Execute reasoning loop (max 10 steps):
+   - Assemble context for LLM
+   - Invoke LLM with current context
+   - Parse LLM response:
+     - If tool call: Execute tool, add result to context, continue
+     - If plan: Validate plan, return if valid, otherwise request correction
+     - If unexpected: Add error to context, continue
+4. If max steps reached without valid plan, escalate to human review
 
 **Step Tracking:**
 - Each step logged with timestamp
@@ -1989,32 +1883,15 @@ To ensure reliable parsing and execution, the Agentic AI Service enforces struct
 - Retry with corrections if validation fails
 
 **Parsing Strategy:**
-```python
-def parse_llm_response(response: str) -> Union[ResolutionPlan, ToolCall, Error]:
-    try:
-        # 1. Extract JSON from response
-        json_str = extract_json(response)
-        parsed = json.loads(json_str)
-        
-        # 2. Determine response type
-        if "nodes" in parsed:
-            # Resolution plan
-            validate_against_schema(parsed, RESOLUTION_PLAN_SCHEMA)
-            return ResolutionPlan.from_dict(parsed)
-        
-        elif "tool" in parsed:
-            # Tool call
-            validate_against_schema(parsed, TOOL_CALL_SCHEMA)
-            return ToolCall.from_dict(parsed)
-        
-        else:
-            return Error("Unknown response format")
-    
-    except json.JSONDecodeError:
-        return Error("Invalid JSON")
-    except ValidationError as e:
-        return Error(f"Schema validation failed: {e}")
-```
+1. Extract JSON from LLM response
+2. Parse JSON string
+3. Determine response type:
+   - If contains "nodes": Resolution plan → validate and return
+   - If contains "tool": Tool call → validate and return
+   - Otherwise: Return error
+4. Handle errors:
+   - JSON decode error → return "Invalid JSON"
+   - Schema validation error → return validation details
 
 ### 3.3 Prompt Management & Model Registry
 
@@ -2085,16 +1962,9 @@ changelog:
 
 
 **Prompt Rendering:**
-```python
-def render_prompt(
-    prompt_template: PromptTemplate,
-    variables: Dict[str, Any]
-) -> str:
-    # Use Jinja2 or Handlebars for templating
-    template = jinja2.Template(prompt_template.user_prompt_template)
-    rendered = template.render(**variables)
-    return rendered
-```
+- Use templating engine (Jinja2 or Handlebars)
+- Render template with provided variables
+- Return rendered prompt string
 
 **Version Management:**
 - Major version: Breaking changes (incompatible with previous)
@@ -2114,46 +1984,27 @@ def render_prompt(
 The Model Registry is a centralized service that tracks all AI models, their versions, configurations, and deployment metadata.
 
 **Registry Schema:**
-```sql
-CREATE TABLE models (
-    model_id UUID PRIMARY KEY,
-    model_name VARCHAR(255) NOT NULL,
-    model_type VARCHAR(50) NOT NULL, -- llm, embedding, classification, etc.
-    provider VARCHAR(100) NOT NULL, -- openai, anthropic, self-hosted
-    version VARCHAR(50) NOT NULL,
-    deployment_date TIMESTAMP NOT NULL,
-    status VARCHAR(20) NOT NULL, -- active, deprecated, retired
-    configuration JSONB NOT NULL,
-    performance_metrics JSONB,
-    created_at TIMESTAMP DEFAULT NOW()
-);
 
-CREATE TABLE prompt_templates (
-    prompt_id UUID PRIMARY KEY,
-    prompt_name VARCHAR(255) NOT NULL,
-    version VARCHAR(50) NOT NULL,
-    language VARCHAR(10) NOT NULL,
-    model_compatibility TEXT[] NOT NULL,
-    system_prompt TEXT NOT NULL,
-    user_prompt_template TEXT NOT NULL,
-    variables JSONB NOT NULL,
-    status VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    created_by VARCHAR(255) NOT NULL
-);
+**Models Table:**
+- model_id, model_name, model_type (llm, embedding, classification)
+- provider (openai, anthropic, self-hosted)
+- version, deployment_date, status (active, deprecated, retired)
+- configuration (JSONB), performance_metrics (JSONB)
 
-CREATE TABLE model_deployments (
-    deployment_id UUID PRIMARY KEY,
-    model_id UUID REFERENCES models(model_id),
-    prompt_id UUID REFERENCES prompt_templates(prompt_id),
-    environment VARCHAR(50) NOT NULL, -- production, staging, canary
-    traffic_percentage INTEGER NOT NULL,
-    deployed_at TIMESTAMP DEFAULT NOW(),
-    deployed_by VARCHAR(255) NOT NULL
-);
+**Prompt Templates Table:**
+- prompt_id, prompt_name, version, language
+- model_compatibility, system_prompt, user_prompt_template
+- variables (JSONB), status, created_at, created_by
 
-CREATE TABLE inference_logs (
-    log_id UUID PRIMARY KEY,
+**Model Deployments Table:**
+- deployment_id, model_id, prompt_id
+- environment (production, staging, canary)
+- traffic_percentage, deployed_at, deployed_by
+
+**Inference Logs Table:**
+- log_id, model_id, prompt_id, mudda_id
+- input_tokens, output_tokens, latency_ms
+- confidence_score, timestamp
     model_id UUID REFERENCES models(model_id),
     prompt_id UUID REFERENCES prompt_templates(prompt_id),
     mudda_id UUID,
@@ -2162,11 +2013,7 @@ CREATE TABLE inference_logs (
     latency_ms INTEGER,
     confidence FLOAT,
     success BOOLEAN,
-    timestamp TIMESTAMP DEFAULT NOW()
-);
-```
-
-**Model Configuration:**
+**Model Configuration Example:**
 ```json
 {
   "model_id": "uuid",
@@ -2177,56 +2024,14 @@ CREATE TABLE inference_logs (
   "configuration": {
     "temperature": 0.3,
     "top_p": 0.9,
-    "max_tokens": 2048,
-    "frequency_penalty": 0.0,
-    "presence_penalty": 0.0
+    "max_tokens": 2048
   },
   "performance_metrics": {
     "avg_latency_ms": 1500,
     "avg_confidence": 0.82,
-    "success_rate": 0.94,
-    "human_review_rate": 0.15
+    "success_rate": 0.94
   }
 }
-```
-
-**Registry API:**
-```python
-class ModelRegistry:
-    def register_model(self, model: Model) -> str:
-        """Register a new model"""
-        
-    def get_model(self, model_id: str) -> Model:
-        """Retrieve model by ID"""
-        
-    def get_active_model(self, model_type: str) -> Model:
-        """Get currently active model for a type"""
-        
-    def register_prompt(self, prompt: PromptTemplate) -> str:
-        """Register a new prompt template"""
-        
-    def get_prompt(self, prompt_id: str) -> PromptTemplate:
-        """Retrieve prompt template by ID"""
-        
-    def deploy_model(
-        self, 
-        model_id: str, 
-        prompt_id: str, 
-        environment: str,
-        traffic_percentage: int
-    ) -> str:
-        """Deploy model with prompt to environment"""
-        
-    def log_inference(self, log: InferenceLog):
-        """Log inference for monitoring"""
-        
-    def get_performance_metrics(
-        self, 
-        model_id: str, 
-        start_date: datetime, 
-        end_date: datetime
-    ) -> PerformanceMetrics:
-        """Get performance metrics for a model"""
 ```
 
 
@@ -2323,24 +2128,10 @@ New models and prompts are deployed using canary releases to minimize risk.
 - Manual rollback by AI team
 
 **Implementation:**
-```python
-def route_to_model(mudda_id: str) -> Model:
-    # Hash mudda_id for consistent routing
-    hash_value = hash(mudda_id) % 100
-    
-    # Get active deployments
-    deployments = model_registry.get_active_deployments()
-    
-    # Route based on traffic percentage
-    cumulative = 0
-    for deployment in deployments:
-        cumulative += deployment.traffic_percentage
-        if hash_value < cumulative:
-            return model_registry.get_model(deployment.model_id)
-    
-    # Fallback to default
-    return model_registry.get_default_model()
-```
+- Hash mudda_id for consistent routing (modulo 100)
+- Get active deployments from registry
+- Route based on cumulative traffic percentage
+- Fallback to default model if no match
 
 ### 3.4 Confidence Thresholds & Risk Scoring
 
@@ -2431,30 +2222,17 @@ Confidence thresholds determine whether AI decisions are auto-approved, require 
 
 Different languages have different model performance, requiring adjusted thresholds:
 
-```python
-LANGUAGE_THRESHOLDS = {
-    "en": {"auto_approve": 0.80, "review": 0.60},
-    "hi": {"auto_approve": 0.80, "review": 0.60},
-    "ta": {"auto_approve": 0.75, "review": 0.55},
-    "te": {"auto_approve": 0.75, "review": 0.55},
-    "bn": {"auto_approve": 0.75, "review": 0.55},
-    "mr": {"auto_approve": 0.75, "review": 0.55},
-    "code_mixed": {"auto_approve": 0.70, "review": 0.50}
-}
-```
+- English, Hindi: auto_approve=0.80, review=0.60
+- Tamil, Telugu, Bengali, Marathi: auto_approve=0.75, review=0.55
+- Code-mixed: auto_approve=0.70, review=0.50
 
 **Region-Specific Thresholds:**
 
 Adjust thresholds based on regional performance:
 
-```python
-REGION_ADJUSTMENTS = {
-    "maharashtra": 0.0,   # Baseline
-    "karnataka": 0.0,     # Baseline
-    "tamil_nadu": -0.05,  # Lower threshold (higher auto-approve rate)
-    "uttar_pradesh": 0.05 # Higher threshold (more human review)
-}
-```
+- Maharashtra, Karnataka: Baseline (0.0 adjustment)
+- Tamil Nadu: -0.05 (lower threshold, higher auto-approve rate)
+- Uttar Pradesh: +0.05 (higher threshold, more human review)
 
 #### 3.4.3 Dynamic Threshold Adjustment
 
@@ -2466,55 +2244,16 @@ The Analytics Feedback Service continuously monitors AI performance and adjusts 
 - Human Review Rate: 15-25% (balance automation and quality)
 
 **Adjustment Algorithm:**
-```python
-def adjust_thresholds(
-    language: str,
-    region: str,
-    current_metrics: PerformanceMetrics
-) -> ThresholdUpdate:
-    
-    current_thresholds = get_thresholds(language, region)
-    
-    # Calculate adjustments
-    adjustments = {}
-    
-    # If false positive rate too high, increase auto-approve threshold
-    if current_metrics.false_positive_rate > 0.05:
-        adjustments["auto_approve"] = +0.02
-    
-    # If false negative rate too high, decrease review threshold
-    if current_metrics.false_negative_rate > 0.10:
-        adjustments["review"] = -0.02
-    
-    # If human review rate too high, decrease auto-approve threshold
-    if current_metrics.human_review_rate > 0.25:
-        adjustments["auto_approve"] = -0.01
-    
-    # If human review rate too low, increase auto-approve threshold
-    if current_metrics.human_review_rate < 0.15:
-        adjustments["auto_approve"] = +0.01
-    
-    # Apply adjustments with bounds
-    new_thresholds = {
-        "auto_approve": clip(
-            current_thresholds["auto_approve"] + adjustments.get("auto_approve", 0),
-            min=0.70, max=0.90
-        ),
-        "review": clip(
-            current_thresholds["review"] + adjustments.get("review", 0),
-            min=0.50, max=0.70
-        )
-    }
-    
-    return ThresholdUpdate(
-        language=language,
-        region=region,
-        old_thresholds=current_thresholds,
-        new_thresholds=new_thresholds,
-        reason=f"FPR: {current_metrics.false_positive_rate}, "
-               f"FNR: {current_metrics.false_negative_rate}"
-    )
-```
+1. Get current thresholds for language and region
+2. Calculate adjustments based on metrics:
+   - If false positive rate > 5%: increase auto-approve threshold by 0.02
+   - If false negative rate > 10%: decrease review threshold by 0.02
+   - If human review rate > 25%: decrease auto-approve threshold by 0.01
+   - If human review rate < 15%: increase auto-approve threshold by 0.01
+3. Apply adjustments with bounds:
+   - auto_approve: min=0.70, max=0.90
+   - review: min=0.50, max=0.70
+4. Return threshold update with reasoning
 
 **Adjustment Frequency:**
 - Weekly analysis of performance metrics
@@ -2738,47 +2477,24 @@ All AI decisions, human corrections, and outcomes are ingested into Redshift for
 **Key Analytical Queries:**
 
 **1. False Positive Rate by Language:**
-```sql
-SELECT 
-    language,
-    COUNT(*) FILTER (WHERE human_decision = 'approve' AND ai_decision = 'reject') 
-        AS false_positives,
-    COUNT(*) AS total_decisions,
-    (false_positives::FLOAT / total_decisions) AS false_positive_rate
-FROM ai_decisions
-WHERE timestamp >= NOW() - INTERVAL '7 days'
-GROUP BY language;
-```
+- Count false positives (human approved, AI rejected) per language
+- Calculate rate over last 7 days
+- Group by language
 
 **2. False Negative Rate by Region:**
-```sql
-SELECT 
-    region,
-    COUNT(*) FILTER (WHERE human_decision = 'reject' AND ai_decision = 'approve') 
-        AS false_negatives,
-    COUNT(*) AS total_decisions,
-    (false_negatives::FLOAT / total_decisions) AS false_negative_rate
-FROM ai_decisions
-WHERE timestamp >= NOW() - INTERVAL '7 days'
-GROUP BY region;
-```
+- Count false negatives (human rejected, AI approved) per region
+- Calculate rate over last 7 days
+- Group by region
 
 **3. Plan Success Rate by Category:**
-```sql
-SELECT 
-    category,
-    COUNT(*) FILTER (WHERE resolution_status = 'resolved') AS successful,
-    COUNT(*) AS total_plans,
-    (successful::FLOAT / total_plans) AS success_rate,
-    AVG(resolution_time_hours) AS avg_resolution_time
-FROM resolution_plans
-WHERE created_at >= NOW() - INTERVAL '30 days'
-GROUP BY category;
-```
+- Count successful resolutions per category
+- Calculate success rate and average resolution time
+- Analyze last 30 days
 
 **4. Correction Patterns:**
-```sql
-SELECT 
+- Count correction types and frequency
+- Calculate average AI confidence for each correction type
+- Identify affected categories 
     correction_type,
     COUNT(*) AS frequency,
     AVG(ai_confidence) AS avg_ai_confidence,
@@ -2787,7 +2503,6 @@ FROM human_corrections
 WHERE timestamp >= NOW() - INTERVAL '7 days'
 GROUP BY correction_type
 ORDER BY frequency DESC;
-```
 
 
 #### 3.6.2 Drift Detection
@@ -2817,46 +2532,13 @@ Model drift occurs when AI performance degrades over time due to changing data d
 - Alert if new language combinations appear
 
 **Drift Detection Algorithm:**
-```python
-def detect_drift(
-    current_metrics: PerformanceMetrics,
-    baseline_metrics: PerformanceMetrics,
-    threshold: float = 0.05
-) -> DriftAlert:
-    
-    drift_detected = False
-    drift_details = []
-    
-    # Check accuracy drift
-    accuracy_change = abs(current_metrics.accuracy - baseline_metrics.accuracy)
-    if accuracy_change > threshold:
-        drift_detected = True
-        drift_details.append(f"Accuracy drift: {accuracy_change:.2%}")
-    
-    # Check confidence drift
-    confidence_change = abs(current_metrics.avg_confidence - baseline_metrics.avg_confidence)
-    if confidence_change > threshold:
-        drift_detected = True
-        drift_details.append(f"Confidence drift: {confidence_change:.2%}")
-    
-    # Check distribution drift (KL divergence)
-    kl_div = calculate_kl_divergence(
-        current_metrics.category_distribution,
-        baseline_metrics.category_distribution
-    )
-    if kl_div > 0.1:
-        drift_detected = True
-        drift_details.append(f"Distribution drift: KL={kl_div:.3f}")
-    
-    if drift_detected:
-        return DriftAlert(
-            severity="high" if accuracy_change > 0.10 else "medium",
-            details=drift_details,
-            recommendation="Consider model retraining or prompt adjustment"
-        )
-    
-    return None
-```
+1. Compare current metrics vs. baseline (previous 4 weeks)
+2. Check accuracy drift: Alert if change > 5%
+3. Check confidence drift: Alert if average confidence drops > 5%
+4. Check distribution drift: Calculate KL divergence, alert if > 0.1
+5. If drift detected:
+   - Severity: high (accuracy change > 10%), medium (otherwise)
+   - Recommendation: Model retraining or prompt adjustment
 
 **Drift Response:**
 - Alert AI team immediately
@@ -2887,29 +2569,9 @@ disparate_impact = (decision_rate_group_A / decision_rate_group_B)
 - Ensures positive predictions equally accurate
 
 **Bias Detection Query:**
-```sql
-WITH decision_rates AS (
-    SELECT 
-        region,
-        COUNT(*) FILTER (WHERE ai_decision = 'approve') AS approvals,
-        COUNT(*) AS total,
-        (approvals::FLOAT / total) AS approval_rate
-    FROM ai_decisions
-    WHERE timestamp >= NOW() - INTERVAL '7 days'
-    GROUP BY region
-)
-SELECT 
-    a.region AS region_a,
-    b.region AS region_b,
-    a.approval_rate,
-    b.approval_rate,
-    (a.approval_rate / b.approval_rate) AS disparate_impact
-FROM decision_rates a
-CROSS JOIN decision_rates b
-WHERE a.region != b.region
-  AND (a.approval_rate / b.approval_rate) < 0.8 
-   OR (a.approval_rate / b.approval_rate) > 1.25;
-```
+- Calculate approval rates by region over last 7 days
+- Compare approval rates across all region pairs
+- Flag disparate impact where ratio < 0.8 or > 1.25
 
 **Bias Mitigation Strategies:**
 
@@ -2947,31 +2609,10 @@ Specialized AI models (hate speech, categorization, etc.) are periodically retra
 **Retraining Process:**
 
 **1. Data Collection:**
-```python
-def collect_training_data(start_date: datetime, end_date: datetime) -> Dataset:
-    # Query Redshift for labeled data
-    query = """
-        SELECT 
-            mudda_content,
-            ai_prediction,
-            human_label,
-            language,
-            region,
-            category
-        FROM ai_decisions
-        WHERE timestamp BETWEEN %s AND %s
-          AND human_label IS NOT NULL
-    """
-    
-    data = redshift.query(query, (start_date, end_date))
-    
-    # Balance dataset
-    balanced_data = balance_by_class(data)
-    balanced_data = balance_by_language(balanced_data)
-    balanced_data = balance_by_region(balanced_data)
-    
-    return balanced_data
-```
+- Query Redshift for labeled data between date range
+- Select: mudda_content, ai_prediction, human_label, language, region, category
+- Filter: Only records with human labels
+- Balance dataset by class, language, and region
 
 **2. Model Training:**
 - Split data: 80% train, 10% validation, 10% test
@@ -3165,22 +2806,11 @@ All event consumers implement idempotency to handle at-least-once delivery:
 **Idempotency Key:** `event_id` (UUID in event payload)
 
 **Consumer Pattern:**
-```python
-def process_event(event: Event):
-    # Check if already processed
-    if event_store.exists(event.event_id):
-        logger.info(f"Event {event.event_id} already processed, skipping")
-        return
-    
-    # Process event
-    result = handle_event(event)
-    
-    # Store event_id to prevent reprocessing
-    event_store.save(event.event_id, result)
-    
-    # Commit offset
-    consumer.commit()
-```
+1. Check if event already processed using event_id
+2. If exists, skip processing (idempotency)
+3. Process event and get result
+4. Store event_id to prevent reprocessing
+5. Commit consumer offset
 
 ### 4.2 Producers & Consumers
 
@@ -3289,66 +2919,18 @@ def process_event(event: Event):
 **Trigger:** mudda.analysis_completed event (status = ACTIVE)
 
 **Workflow Definition:**
-```python
-@workflow.defn
-class ResolutionPlanningWorkflow:
-    @workflow.run
-    async def run(self, mudda_id: str) -> ResolutionPlan:
-        # Activity 1: Query RAG for context
-        rag_context = await workflow.execute_activity(
-            query_rag_activity,
-            mudda_id,
-            start_to_close_timeout=timedelta(seconds=30)
-        )
-        
-        # Activity 2: Generate resolution plan
-        plan = await workflow.execute_activity(
-            generate_plan_activity,
-            mudda_id,
-            rag_context,
-            start_to_close_timeout=timedelta(seconds=60)
-        )
-        
-        # Decision: Check confidence
-        if plan.confidence < 0.6:
-            # Activity 3: Human review
-            human_decision = await workflow.execute_activity(
-                create_human_review_task,
-                mudda_id,
-                plan,
-                start_to_close_timeout=timedelta(hours=24)
-            )
-            plan = human_decision.plan
-        
-        # Activity 4: Execute plan (tool calling)
-        for node in plan.nodes:
-            await workflow.execute_activity(
-                execute_tool_call,
-                node.tool,
-                node.parameters,
-                start_to_close_timeout=timedelta(seconds=30),
-                retry_policy=RetryPolicy(
-                    maximum_attempts=5,
-                    initial_interval=timedelta(seconds=1),
-                    backoff_coefficient=2.0
-                )
-            )
-        
-        # Activity 5: Persist plan
-        await workflow.execute_activity(
-            persist_plan_activity,
-            mudda_id,
-            plan,
-            start_to_close_timeout=timedelta(seconds=10)
-        )
-        
-        return plan
-```
 
 **Activities:**
+1. Query RAG for context (timeout: 30s)
+2. Generate resolution plan via Agentic AI (timeout: 60s)
+3. If confidence < 0.6: Create human review task (timeout: 24h)
+4. Execute plan nodes via tool calling (timeout: 30s, retry: 5 attempts)
+5. Persist plan to database (timeout: 10s)
+
+**Activity List:**
 - `query_rag_activity` - Query RAG Service
 - `generate_plan_activity` - Invoke Agentic AI
-- `create_human_review_task` - Create moderation task
+- `create_human_review_task` - Create review task
 - `execute_tool_call` - Call external service
 - `persist_plan_activity` - Save to database
 
@@ -3357,57 +2939,20 @@ class ResolutionPlanningWorkflow:
 **Trigger:** Content flagged for review
 
 **Workflow Definition:**
-```python
-@workflow.defn
-class ModerationWorkflow:
-    @workflow.run
-    async def run(self, mudda_id: str, flag_reason: str) -> ModerationDecision:
-        # Activity 1: Assign to moderator
-        moderator = await workflow.execute_activity(
-            assign_moderator_activity,
-            mudda_id,
-            flag_reason,
-            start_to_close_timeout=timedelta(seconds=10)
-        )
-        
-        # Activity 2: Wait for human decision (async)
-        decision = await workflow.execute_activity(
-            wait_for_moderation_decision,
-            mudda_id,
-            moderator.id,
-            start_to_close_timeout=timedelta(hours=24)
-        )
-        
-        # Activity 3: Apply decision
-        await workflow.execute_activity(
-            apply_moderation_decision,
-            mudda_id,
-            decision,
-            start_to_close_timeout=timedelta(seconds=10)
-        )
-        
-        # Activity 4: Emit feedback event
-        await workflow.execute_activity(
-            emit_feedback_event,
-            mudda_id,
-            decision,
-            start_to_close_timeout=timedelta(seconds=5)
-        )
-        
-        return decision
-```
+
+**Activities:**
+1. Assign to reviewer (timeout: 10s)
+2. Wait for human decision (timeout: 24h)
+3. Apply review decision (timeout: 10s)
+4. Emit feedback event (timeout: 5s)
 
 ### 5.2 Retry & Failure Policies
 
 **Exponential Backoff:**
-```python
-RetryPolicy(
-    initial_interval=timedelta(seconds=1),
-    backoff_coefficient=2.0,
-    maximum_interval=timedelta(seconds=60),
-    maximum_attempts=5
-)
-```
+- Initial interval: 1 second
+- Backoff coefficient: 2.0
+- Maximum interval: 60 seconds
+- Maximum attempts: 5
 
 **Timeout Handling:**
 - Short activities (< 10s): Database operations
@@ -3422,26 +2967,14 @@ RetryPolicy(
 ### 5.3 Human-in-the-Loop Integration
 
 **Asynchronous Wait:**
-```python
-# Create task and wait for completion
-task_id = await create_task(mudda_id, plan)
-
-# Wait for signal from human
-decision = await workflow.wait_condition(
-    lambda: task_completed(task_id),
-    timeout=timedelta(hours=24)
-)
-
-# Resume with human decision
-return decision
-```
+1. Create human review task with mudda_id and plan
+2. Wait for signal from human (timeout: 24 hours)
+3. Resume workflow with human decision
 
 **Signal Handling:**
-```python
-@workflow.signal
-def task_completed_signal(self, decision: ModerationDecision):
-    self.human_decision = decision
-```
+- Define workflow signal for task completion
+- Accept human decision as parameter
+- Store decision in workflow state
 
 ---
 
