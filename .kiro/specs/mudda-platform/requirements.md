@@ -46,11 +46,11 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 ## 3. Glossary
 
 - **Mudda**: A civic issue or public concern raised by a user on the platform
-- **Agentic_AI_Service**: Central cognitive decision-making microservice that uses LLMs for reasoning and orchestrates specialized AI services via tool calling
-- **Hate_Speech_Detection_Service**: Specialized AI microservice that analyzes text for abusive content with severity scoring
-- **NSFW_Media_Filtering_Service**: Specialized AI microservice that analyzes images, video and other media content for obscenity and mark for NSFW (Not Safe For Work).
-- **Duplication_Detection_Service**: Specialized AI microservice that uses semantic similarity and embeddings to identify near-duplicate issues
-- **Categorization_Service**: Specialized AI microservice that performs automatic multi-label classification across civic domains
+- **Agentic_AI_Service**: Central cognitive decision-making microservice that uses LLMs for reasoning and orchestrates resolution workflows via tool calling and DAG synthesis
+- **Hate_Speech_Detection_Service**: Specialized AI microservice that analyzes text for abusive content with severity scoring, runs as background worker on mudda creation
+- **NSFW_Media_Filtering_Service**: Specialized AI microservice that analyzes images, video and other media content for obscenity and marks for NSFW (Not Safe For Work), runs as background worker on mudda creation
+- **Duplication_Detection_Service**: Specialized AI microservice that uses semantic similarity and embeddings to identify near-duplicate issues, runs as background worker on mudda creation
+- **Categorization_Service**: Specialized AI microservice that performs automatic multi-label classification across civic domains, runs as background worker on mudda creation and validates user-provided categories
 - **OCR_Service**: Specialized AI microservice that extracts text from images and scanned documents
 - **RAG_Service**: Retrieval-Augmented Generation microservice that provides contextual knowledge from rules, regulations, and historical resolution data to enhance Agentic AI decision-making and DAG synthesis
 - **Temporal_Workflow**: Durable, fault-tolerant workflow orchestrated by Temporal.io with replay and audit capabilities
@@ -120,28 +120,57 @@ MARKED-BY-SHUBH
 2. WHEN a mudda includes images, THE Media_Service SHALL store the images and extract metadata including upload timestamp and file size
 3. WHEN a mudda includes location data, THE Mudda_Service SHALL validate and store geographic coordinates with the mudda
 4. WHEN a mudda is created, THE Mudda_Service SHALL assign it a unique identifier and initial status of "pending_analysis"
-5. The Categorization_Service shall automatically detect and validate the uploaded issue for correct department handling
+5. WHEN a user optionally provides a category during mudda creation, THE Categorization_Service SHALL validate the user-provided category against AI-determined categories
 6. THE Mudda_Service SHALL enforce a maximum text length of 5000 characters per mudda
 7. WHEN a user attempts to submit a mudda without required fields, THE Mudda_Service SHALL reject the submission and return validation errors
+8. WHEN a mudda is posted, THE system SHALL immediately return success to the user while background workers process content analysis
+9. WHEN a mudda creation event is published, THE Hate_Speech_Detection_Service SHALL consume the event and analyze content in the background
+10. WHEN a mudda creation event is published, THE NSFW_Media_Filtering_Service SHALL consume the event and analyze attached media in the background
+11. WHEN a mudda creation event is published, THE Duplication_Detection_Service SHALL consume the event and identify similar muddas in the background
+12. WHEN a mudda creation event is published, THE Categorization_Service SHALL consume the event and assign civic domain categories in the background
+13. WHEN images are present in a mudda, THE OCR_Service SHALL extract text from images before other AI services process the content
+14. WHEN background analysis completes, THE Mudda_Service SHALL update the mudda status and emit a mudda.analysis_completed event
+15. WHEN hate speech or NSFW content is detected above critical thresholds, THE Moderation_Service SHALL automatically hide the mudda and notify the author
+16. WHEN background analysis detects policy violations below critical thresholds, THE Moderation_Service SHALL flag the mudda for human review
+17. WHEN all background analysis services complete successfully, THE Mudda_Service SHALL transition the mudda to "active" status
+18. THE system SHALL store all analysis results (hate speech scores, NSFW scores, categories, duplicates) in the analytical database (Amazon Redshift) for reporting and feedback loops
 
-### Requirement 3: AI-Driven Content Analysis Workflow
 
-**User Story:** As a platform administrator, I want all submitted muddas to be automatically analyzed by AI systems, so that content is properly categorized, moderated, and organized without manual intervention.
+### Requirement 3: Agentic AI Resolution Planning and Workflow Execution
+
+**User Story:** As a platform administrator, I want the AI system to intelligently plan and execute resolution workflows for civic issues using contextual decision-making, so that muddas are routed to appropriate authorities and tracked through resolution with minimal manual intervention.
 
 #### Acceptance Criteria
 
-1. WHEN a mudda creation event is received, THE Temporal_Orchestrator SHALL initiate a content analysis workflow
-2. WHEN the content analysis workflow starts, THE Language_Detection_Service SHALL identify the language(s) present in the content
-3. WHEN language is detected, THE Agentic_AI_Service SHALL interpret the mudda content using LLM reasoning in the detected language
-4. WHEN the Agentic_AI_Service determines hate speech detection is needed, THE Agentic_AI_Service SHALL invoke the Hate_Speech_Detection_Service via tool calling
-5. WHEN the Agentic_AI_Service determines duplication checking is needed, THE Agentic_AI_Service SHALL invoke the Duplication_Detection_Service via tool calling
-6. WHEN the Agentic_AI_Service determines categorization is needed, THE Agentic_AI_Service SHALL invoke the Categorization_Service via tool calling
-7. WHEN images are present in a mudda, THE Agentic_AI_Service SHALL invoke the OCR_Service to extract text before analysis
-8. WHEN all AI analysis activities complete, THE Temporal_Workflow SHALL aggregate results and emit a Kafka event with analysis outcomes
-9. IF any workflow activity fails, THE Temporal_Orchestrator SHALL retry the activity with exponential backoff up to 5 attempts
-10. WHEN AI confidence is below language-specific thresholds, THE Agentic_AI_Service SHALL trigger human review
-11. WHEN content is sent to external LLM APIs, THE PII_Sanitization_Service SHALL remove all personally identifiable information first
-12. THE Agentic_AI_Service SHALL log all LLM prompts, responses, model versions, and inference parameters for auditability
+1. WHEN a mudda transitions to "active" status after content analysis, THE Temporal_Orchestrator SHALL initiate a resolution planning workflow
+2. WHEN the resolution planning workflow starts, THE Agentic_AI_Service SHALL analyze the mudda content, category, and location to understand the civic issue using LLM reasoning
+3. WHEN the Agentic_AI_Service plans resolution, THE Agentic_AI_Service SHALL query the RAG_Service for relevant regulations, rules, and historical resolution cases
+4. WHEN RAG context is retrieved, THE Agentic_AI_Service SHALL use LLM reasoning to synthesize a resolution plan as a Directed Acyclic Graph (DAG) of workflow steps
+5. WHEN the resolution DAG is generated, THE Agentic_AI_Service SHALL identify required tools and government officials/staff to contact
+6. WHEN the Agentic_AI_Service plans actions, THE Agentic_AI_Service SHALL generate a sequence of tool calls to execute the resolution workflow
+7. WHEN the Agentic_AI_Service determines notification is needed, THE Agentic_AI_Service SHALL invoke the Notification_Service via tool calling to contact relevant authorities
+8. WHEN the Agentic_AI_Service determines routing is needed, THE Agentic_AI_Service SHALL invoke the Routing_Service via tool calling to determine jurisdictional authorities
+9. WHEN the Agentic_AI_Service determines escalation is needed, THE Agentic_AI_Service SHALL invoke the Escalation_Service via tool calling to prioritize the mudda
+10. WHEN tool call results are received, THE Agentic_AI_Service SHALL interpret results and decide on next actions
+11. THE Agentic_AI_Service SHALL maintain conversation context across multiple reasoning steps within a workflow
+12. WHEN the resolution plan includes human-in-the-loop steps, THE Temporal_Workflow SHALL pause and create tasks for manual intervention
+13. WHEN human tasks are completed, THE Temporal_Workflow SHALL resume execution with the human decision incorporated
+14. IF any workflow activity fails, THE Temporal_Orchestrator SHALL retry the activity with exponential backoff up to 5 attempts
+15. WHEN the Agentic_AI_Service makes a decision, THE Agentic_AI_Service SHALL log the reasoning chain and evidence for explainability
+16. WHEN the resolution plan is executed, THE Agentic_AI_Service SHALL log all LLM prompts, responses, tool calls, and reasoning chains for auditability
+17. THE Agentic_AI_Service SHALL support configurable policy rules that guide LLM decision-making
+18. WHEN AI confidence in resolution planning is below thresholds, THE Agentic_AI_Service SHALL escalate to human review before executing the plan
+19. THE Agentic_AI_Service SHALL support multilingual reasoning using language-appropriate LLM models or prompts
+20. WHEN using external LLM APIs, THE Agentic_AI_Service SHALL send only PII-sanitized content
+21. WHEN content is sent to external LLM APIs, THE PII_Sanitization_Service SHALL remove all personally identifiable information first
+22. THE Agentic_AI_Service SHALL support configuration-based switching between managed LLM APIs and self-hosted models
+23. THE Agentic_AI_Service SHALL use versioned prompt templates from the Model_Registry
+24. THE Agentic_AI_Service SHALL log all inference parameters (temperature, top-p, max tokens) for each LLM invocation
+25. WHEN data residency mode is enabled, THE Agentic_AI_Service SHALL use only self-hosted models within Indian data centers
+26. THE Agentic_AI_Service SHALL adjust decision thresholds based on feedback from the Analytics_Feedback_Service
+27. WHEN the resolution workflow completes, THE Temporal_Workflow SHALL emit a mudda.resolution_planned event with the complete DAG
+28. THE Agentic_AI_Service SHALL cite specific regulations and past cases used in resolution planning for explainability
+29. THE system SHALL store all resolution plans and execution traces in the analytical database (Amazon Redshift) for feedback loops and continuous improvement
 
 ### Requirement 4: Hate Speech Detection and Moderation
 
@@ -149,17 +178,18 @@ MARKED-BY-SHUBH
 
 #### Acceptance Criteria
 
-1. WHEN the Hate_Speech_Detection_Service receives content for analysis, THE Hate_Speech_Detection_Service SHALL return a severity score between 0 and 1
-2. WHEN the severity score exceeds language-specific threshold (default 0.7), THE Agentic_AI_Service SHALL mark the mudda as "flagged_for_review" and emit a moderation event
-3. WHEN the severity score exceeds critical threshold (default 0.9), THE Agentic_AI_Service SHALL automatically hide the mudda and notify the author
-4. WHEN a mudda is flagged for review, THE Moderation_Workflow SHALL create a human-in-the-loop task for manual review with language-appropriate moderators
+1. WHEN the Hate_Speech_Detection_Service consumes a mudda creation event, THE Hate_Speech_Detection_Service SHALL analyze the content and return a severity score between 0 and 1
+2. WHEN the severity score exceeds language-specific threshold (default 0.7), THE Hate_Speech_Detection_Service SHALL mark the mudda as "flagged_for_review" and emit a moderation event
+3. WHEN the severity score exceeds critical threshold (default 0.9), THE Hate_Speech_Detection_Service SHALL automatically hide the mudda and emit an event to notify the author
+4. WHEN a mudda is flagged for review, THE Moderation_Service SHALL create a human-in-the-loop task for manual review with language-appropriate moderators
 5. THE Hate_Speech_Detection_Service SHALL analyze both text content and OCR-extracted text from images
-6. WHEN a moderation decision is made, THE Moderation_Service SHALL emit a Kafka event with the decision and reasoning
+6. WHEN a moderation decision is made by a human moderator, THE Moderation_Service SHALL emit a Kafka event with the decision and reasoning
 7. THE Moderation_Service SHALL store all moderation decisions with timestamps and decision-maker identifiers for auditability
 8. THE Hate_Speech_Detection_Service SHALL support hate speech detection in all supported Indian languages and code-mixed variants
 9. WHEN moderation decisions are overridden by humans, THE Moderation_Service SHALL emit correction events for feedback loop processing
 10. THE Platform SHALL maintain separate confidence thresholds per language based on model performance metrics
-11. WHEN hate speech detection confidence is below 0.6, THE Agentic_AI_Service SHALL escalate to human review regardless of severity score
+11. WHEN hate speech detection confidence is below 0.6, THE Hate_Speech_Detection_Service SHALL escalate to human review regardless of severity score
+12. THE system SHALL store all hate speech detection results in the analytical database (Amazon Redshift) for performance monitoring and bias detection
 
 ### Requirement 5: Duplicate Issue Detection
 
@@ -167,12 +197,13 @@ MARKED-BY-SHUBH
 
 #### Acceptance Criteria
 
-1. WHEN the Duplication_Detection_Service receives a mudda for analysis, THE Duplication_Detection_Service SHALL compute semantic embeddings of the content
-2. WHEN semantic similarity between a new mudda and existing muddas exceeds 0.85, THE Duplication_Detection_Service SHALL return the similar muddas as potential duplicates
-3. WHEN potential duplicates are found, THE Agentic_AI_Service SHALL notify the user and suggest linking to existing muddas
-4. WHEN a user confirms duplication, THE Mudda_Service SHALL link the new mudda to the original and update both statuses
-5. THE Duplication_Detection_Service SHALL consider both text content and OCR-extracted image text in similarity calculations
-6. WHEN no duplicates are found, THE Agentic_AI_Service SHALL proceed with normal mudda processing
+1. WHEN the Duplication_Detection_Service consumes a mudda creation event, THE Duplication_Detection_Service SHALL compute semantic embeddings of the content
+2. WHEN semantic similarity between a new mudda and existing muddas exceeds 0.85, THE Duplication_Detection_Service SHALL identify the similar muddas as potential duplicates
+3. WHEN potential duplicates are found, THE Duplication_Detection_Service SHALL emit a mudda.duplicates_found event with the list of similar muddas
+4. WHEN a user is notified of potential duplicates, THE Notification_Service SHALL suggest linking to existing muddas
+5. WHEN a user confirms duplication, THE Mudda_Service SHALL link the new mudda to the original and update both statuses
+6. THE Duplication_Detection_Service SHALL consider both text content and OCR-extracted image text in similarity calculations
+7. THE system SHALL store all duplication detection results in the analytical database (Amazon Redshift) for accuracy monitoring
 
 ### Requirement 6: Multi-Label Issue Categorization
 
@@ -180,12 +211,15 @@ MARKED-BY-SHUBH
 
 #### Acceptance Criteria
 
-1. WHEN the Categorization_Service receives a mudda for classification, THE Categorization_Service SHALL assign one or more civic domain labels
+1. WHEN the Categorization_Service consumes a mudda creation event, THE Categorization_Service SHALL assign one or more civic domain labels
 2. THE Categorization_Service SHALL support at least the following civic domains: infrastructure, governance, health, public_safety, environment, education, transportation, housing
 3. WHEN multiple categories apply, THE Categorization_Service SHALL return all relevant categories with confidence scores
-4. WHEN the highest confidence score is below 0.6, THE Agentic_AI_Service SHALL mark the mudda for manual categorization review
-5. WHEN categorization is complete, THE Mudda_Service SHALL update the mudda with assigned categories and emit a Kafka event
-6. THE Categorization_Service SHALL use both text content and OCR-extracted image text for classification
+4. WHEN a user provides a category during mudda creation, THE Categorization_Service SHALL validate the user-provided category against AI-determined categories
+5. WHEN the user-provided category conflicts with AI-determined categories, THE Categorization_Service SHALL flag the mudda for manual categorization review
+6. WHEN the highest confidence score is below 0.6, THE Categorization_Service SHALL mark the mudda for manual categorization review
+7. WHEN categorization is complete, THE Categorization_Service SHALL update the mudda with assigned categories and emit a mudda.categorized event
+8. THE Categorization_Service SHALL use both text content and OCR-extracted image text for classification
+9. THE system SHALL store all categorization results in the analytical database (Amazon Redshift) for accuracy monitoring and feedback loops
 
 ### Requirement 7: Event-Driven Architecture
 
@@ -217,28 +251,7 @@ MARKED-BY-SHUBH
 7. THE Temporal_Orchestrator SHALL support workflow versioning to allow safe deployment of workflow logic changes
 8. THE Temporal_Orchestrator SHALL provide workflow replay capability for debugging and auditability
 
-### Requirement 9: Agentic AI Decision Making
-
-**User Story:** As a platform administrator, I want the AI system to make contextual decisions based on content analysis, so that the platform can intelligently handle diverse civic issues without hardcoded rules.
-
-#### Acceptance Criteria
-
-1. WHEN the Agentic_AI_Service receives a mudda for processing, THE Agentic_AI_Service SHALL use LLM reasoning to determine required analysis steps
-2. WHEN the Agentic_AI_Service plans actions, THE Agentic_AI_Service SHALL generate a sequence of tool calls to specialized AI services
-3. WHEN tool call results are received, THE Agentic_AI_Service SHALL interpret results and decide on next actions
-4. THE Agentic_AI_Service SHALL maintain conversation context across multiple reasoning steps within a workflow
-5. WHEN the Agentic_AI_Service makes a decision, THE Agentic_AI_Service SHALL log the reasoning chain and evidence for explainability
-6. THE Agentic_AI_Service SHALL support configurable policy rules that guide LLM decision-making
-7. WHEN confidence in automated decisions is low, THE Agentic_AI_Service SHALL escalate to human review
-8. THE Agentic_AI_Service SHALL support multilingual reasoning using language-appropriate LLM models or prompts
-9. WHEN using external LLM APIs, THE Agentic_AI_Service SHALL send only PII-sanitized content
-10. THE Agentic_AI_Service SHALL support configuration-based switching between managed LLM APIs and self-hosted models
-11. THE Agentic_AI_Service SHALL use versioned prompt templates from the Model_Registry
-12. THE Agentic_AI_Service SHALL log all inference parameters (temperature, top-p, max tokens) for each LLM invocation
-13. WHEN data residency mode is enabled, THE Agentic_AI_Service SHALL use only self-hosted models within Indian data centers
-14. THE Agentic_AI_Service SHALL adjust decision thresholds based on feedback from the Analytics_Feedback_Service
-
-### Requirement 10: RAG-Enhanced Resolution Planning
+### Requirement 9: RAG-Enhanced Resolution Planning
 
 **User Story:** As a platform administrator, I want the AI system to leverage historical resolution data, civic rules, and regulations when planning issue resolution, so that proposed solutions are informed by past successes and comply with relevant policies.
 
@@ -263,7 +276,7 @@ MARKED-BY-SHUBH
 17. THE RAG_Service SHALL maintain version control for all indexed regulations and policy documents
 18. WHEN conflicting regulations are retrieved, THE RAG_Service SHALL return all conflicts with precedence metadata for human review
 
-### Requirement 11: Analytical Intelligence Layer
+### Requirement 10: Analytical Intelligence Layer
 
 **User Story:** As a data analyst, I want aggregated civic data available in a separate analytical layer, so that I can generate insights without impacting transactional system performance.
 
@@ -282,7 +295,7 @@ MARKED-BY-SHUBH
 11. THE Analytical_Layer SHALL provide dashboards for bias monitoring and fairness audits
 12. THE Analytical_Layer SHALL support export of analytical insights for AI model retraining pipelines
 
-### Requirement 12: User Engagement and Collaboration
+### Requirement 11: User Engagement and Collaboration
 
 **User Story:** As a citizen, I want to comment on muddas, upvote issues, and collaborate on solutions, so that I can participate meaningfully in civic discussions.
 
@@ -295,7 +308,7 @@ MARKED-BY-SHUBH
 5. THE Comment_Service SHALL support threaded discussions with parent-child comment relationships
 6. WHEN a comment is created, THE Agentic_AI_Service SHALL analyze it for hate speech using the same workflow as mudda analysis
 
-### Requirement 13: Issue Status Tracking and Lifecycle
+### Requirement 12: Issue Status Tracking and Lifecycle
 
 **User Story:** As a citizen, I want to track the status of muddas from submission to resolution, so that I can see progress on civic issues I care about.
 
@@ -309,7 +322,7 @@ MARKED-BY-SHUBH
 6. THE Mudda_Service SHALL emit a Kafka event for every status transition
 7. THE Mudda_Service SHALL maintain a complete audit trail of all status changes with timestamps and actors
 
-### Requirement 14: Search and Discovery
+### Requirement 13: Search and Discovery
 
 **User Story:** As a platform user, I want to search for muddas by keywords, categories, and location, so that I can find relevant civic issues.
 
@@ -322,7 +335,7 @@ MARKED-BY-SHUBH
 5. THE Search_Service SHALL support sorting by recency, popularity, and relevance
 6. WHEN search results are returned, THE Search_Service SHALL include mudda summaries, categories, and engagement metrics
 
-### Requirement 15: Notification System
+### Requirement 14: Notification System
 
 **User Story:** As a platform user, I want to receive notifications about updates to muddas I follow, so that I stay informed about civic issues I care about.
 
@@ -335,7 +348,7 @@ MARKED-BY-SHUBH
 5. WHEN a user configures notification preferences, THE Notification_Service SHALL respect those preferences for all future notifications
 6. THE Notification_Service SHALL batch notifications to avoid overwhelming users with high-frequency updates
 
-### Requirement 16: Media Handling and Storage
+### Requirement 15: Media Handling and Storage
 
 **User Story:** As a platform user, I want to upload images and documents with my muddas, so that I can provide visual evidence of civic issues.
 
@@ -349,7 +362,7 @@ MARKED-BY-SHUBH
 6. THE Media_Service SHALL store media files in object storage with secure access controls
 7. WHEN media is accessed, THE Media_Service SHALL serve content through a CDN for optimal performance
 
-### Requirement 17: Escalation and Priority Management
+### Requirement 16: Escalation and Priority Management
 
 **User Story:** As a platform administrator, I want high-priority or urgent civic issues to be automatically escalated, so that critical issues receive timely attention.
 
@@ -364,7 +377,7 @@ MARKED-BY-SHUBH
 7. WHEN muddas from historically underserved regions are detected, THE Escalation_Workflow SHALL apply priority boosting to prevent systemic bias
 8. THE Escalation_Workflow SHALL consider language-specific engagement patterns when determining escalation thresholds
 
-### Requirement 18: Auditability and Explainability
+### Requirement 17: Auditability and Explainability
 
 **User Story:** As a compliance officer, I want all AI decisions to be traceable and explainable, so that the platform can demonstrate fair and accountable content moderation.
 
@@ -383,7 +396,7 @@ MARKED-BY-SHUBH
 11. THE Audit_Service SHALL support audit trail export for regulatory compliance and external fairness audits
 12. THE Audit_Service SHALL log all AI confidence threshold adjustments with supporting analytical evidence
 
-### Requirement 19: Geographic and Jurisdictional Routing
+### Requirement 18: Geographic and Jurisdictional Routing
 
 **User Story:** As a government official, I want muddas to be routed to the appropriate jurisdiction based on location, so that issues reach the right authorities.
 
@@ -395,7 +408,7 @@ MARKED-BY-SHUBH
 4. WHEN a mudda spans multiple jurisdictions, THE Routing_Service SHALL notify all relevant authorities
 5. THE Routing_Service SHALL maintain a registry of officials and their jurisdictional responsibilities
 
-### Requirement 20: API Gateway and Rate Limiting
+### Requirement 19: API Gateway and Rate Limiting
 
 **User Story:** As a platform engineer, I want API access to be controlled and rate-limited, so that the system remains stable under high load and prevents abuse.
 
@@ -408,7 +421,7 @@ MARKED-BY-SHUBH
 5. THE API_Gateway SHALL route requests to appropriate microservices based on URL paths
 6. THE API_Gateway SHALL log all API requests with timestamps, user identifiers, and response codes
 
-### Requirement 21: Mobile and Web Client Support
+### Requirement 20: Mobile and Web Client Support
 
 **User Story:** As a platform user, I want to access Mudda through mobile apps and web browsers, so that I can participate from any device.
 
@@ -421,7 +434,7 @@ MARKED-BY-SHUBH
 5. THE Mobile_App SHALL support offline mode for viewing previously loaded muddas
 6. WHEN network connectivity is restored, THE Mobile_App SHALL sync any offline actions with the backend
 
-### Requirement 22: Multilingual and Code-Mixed Language Support
+### Requirement 21: Multilingual and Code-Mixed Language Support
 
 **User Story:** As a citizen in India, I want to create and interact with muddas in my preferred language including code-mixed text, so that language is not a barrier to civic participation.
 
@@ -440,7 +453,7 @@ MARKED-BY-SHUBH
 11. THE Platform SHALL maintain separate confidence thresholds for each supported language based on model performance
 12. WHEN a mudda is created in a regional language, THE Notification_Service SHALL deliver notifications in the same language
 
-### Requirement 23: AI Model Governance and Data Residency
+### Requirement 22: AI Model Governance and Data Residency
 
 **User Story:** As a compliance officer, I want all AI model usage to be governed with data residency controls, so that the platform complies with Indian data protection regulations.
 
@@ -460,7 +473,7 @@ MARKED-BY-SHUBH
 12. THE Platform SHALL provide configuration to restrict data processing to specific geographic boundaries
 13. WHEN data residency violations are detected, THE Compliance_Service SHALL alert administrators and block the operation
 
-### Requirement 24: Feedback Loops from Analytics to AI Policy
+### Requirement 23: Feedback Loops from Analytics to AI Policy
 
 **User Story:** As an AI system administrator, I want analytical insights to automatically improve AI decision-making, so that the system learns from real-world outcomes and human corrections.
 
@@ -479,7 +492,7 @@ MARKED-BY-SHUBH
 11. WHEN AI confidence thresholds are adjusted, THE Model_Registry SHALL log the change with supporting analytical evidence
 12. THE Analytical_Layer SHALL provide dashboards showing AI performance metrics over time including accuracy, precision, recall, and F1 scores
 
-### Requirement 25: Bias Detection and Fairness Monitoring
+### Requirement 24: Bias Detection and Fairness Monitoring
 
 **User Story:** As a platform administrator, I want to detect and mitigate bias in AI decisions, so that the platform treats all users and regions fairly.
 
@@ -499,7 +512,7 @@ MARKED-BY-SHUBH
 12. THE Platform SHALL conduct quarterly fairness audits with external review of AI decision patterns
 13. THE Fairness_Monitoring_Service SHALL flag muddas from historically underserved regions for priority review to prevent systemic bias
 
-### Requirement 26: India-Scale and Low-Bandwidth Resilience
+### Requirement 25: India-Scale and Low-Bandwidth Resilience
 
 **User Story:** As a citizen with intermittent internet connectivity, I want the platform to work reliably despite network issues, so that I can participate in civic engagement from anywhere in India.
 
