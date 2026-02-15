@@ -2,9 +2,9 @@
 
 ## 1. Feature Overview
 
-Mudda is a large-scale civic-focused social media platform designed to empower citizens to raise public issues ("muddas"), discuss them collaboratively, propose solutions, and track their progress over time. Unlike traditional social platforms, Mudda employs an AI-driven backend to actively interpret, organize, moderate, and prioritize civic issues through an event-driven microservices architecture.
+Mudda is a large-scale civic-focused social media platform designed to empower citizens to raise public issues ("muddas"), discuss them collaboratively, propose solutions, and track their progress over time. Unlike traditional social platforms, Mudda employs an AI-driven backend to actively interpret, organize, review, and prioritize civic issues through an event-driven microservices architecture.
 
-The platform leverages Spring (Java) microservices, Apache Kafka for event streaming, Temporal.io for durable workflow orchestration, and an agentic AI system with specialized AI microservices for content analysis, moderation, and categorization. The system separates transactional workloads from analytical intelligence using Amazon Redshift, while providing user interfaces through Flutter mobile apps and Next.js web applications.
+The platform leverages Spring (Java) microservices on AWS Elastic Beanstalk, Amazon MSK (Managed Streaming for Apache Kafka) and EventBridge for event streaming, AWS Step Functions for durable workflow orchestration, and an agentic AI system with specialized AI microservices (AWS Lambda) for content analysis and categorization. The system separates transactional workloads (AWS RDS PostgreSQL) from analytical intelligence (Amazon Redshift), while providing user interfaces through Flutter mobile apps and Next.js web applications hosted on AWS S3 and CloudFront.
 
 ## 2. Goals and Success Criteria
 
@@ -14,7 +14,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 2. **Efficiency**: Reduce time from issue reporting to official acknowledgment by 50%
 3. **Transparency**: Provide complete visibility into issue status and resolution progress
 4. **Scalability**: Support nationwide deployment with millions of users
-5. **Quality**: Maintain high-quality civic discourse through effective AI moderation
+5. **Quality**: Maintain high-quality civic discourse through effective AI content review
 
 ### Success Metrics
 
@@ -25,9 +25,9 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 5. **AI Accuracy for duplicity of same issues**: Achieve 85% accuracy for duplicate detection
 6. **Performance**: Maintain 99.9% uptime for core services
 7. **Engagement**: Achieve average of 5 comments per active mudda
-8. **Response Time**: Achieve median official response time of 48 hours for escalated issues
+8. **Response Time**: Achieve median response time of 48 hours for escalated issues
 9. **User Satisfaction**: Achieve Net Promoter Score (NPS) of 50 or higher
-10. **Auditability**: Achieve 100% traceability for all AI moderation decisions
+10. **Auditability**: Achieve 100% traceability for all AI decisions
 11. **Multilingual Support**: Achieve 90%+ accuracy for AI services across all supported Indian languages
 12. **Code-Mixed Language**: Achieve 80%+ accuracy for code-mixed language (Hinglish, Tanglish, etc.)
 13. **Fairness**: Maintain disparate impact below 20% across all geographic regions and languages
@@ -53,14 +53,20 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 - **Categorization_Service**: Specialized AI microservice that performs automatic multi-label classification across civic domains, runs as background worker on mudda creation and validates user-provided categories
 - **OCR_Service**: Specialized AI microservice that extracts text from images and scanned documents
 - **RAG_Service**: Retrieval-Augmented Generation microservice that provides contextual knowledge from rules, regulations, and historical resolution data to enhance Agentic AI decision-making and DAG synthesis
-- **Temporal_Workflow**: Durable, fault-tolerant workflow orchestrated by Temporal.io with replay and audit capabilities
-- **Kafka_Event**: Asynchronous message published to Apache Kafka event streaming platform
-- **Transactional_Service**: Spring microservice handling real-time user operations and data mutations
+- **Step_Functions_Workflow**: Durable, fault-tolerant workflow orchestrated by AWS Step Functions with state management and retry capabilities
+- **Kafka_Message**: Asynchronous message published to Amazon MSK (Managed Streaming for Apache Kafka)
+- **EventBridge_Event**: Event published to AWS EventBridge event bus for routing to multiple targets
+- **Transactional_Service**: Spring microservice deployed on AWS Elastic Beanstalk handling real-time user operations
+- **Lambda_Function**: Serverless function on AWS Lambda for event processing and background tasks
 - **Analytical_Layer**: Amazon Redshift-based intelligence layer for aggregated analytics and insights
 - **Human_In_The_Loop**: Manual intervention point in automated workflows requiring human judgment
 - **Tool_Calling**: Mechanism by which Agentic AI invokes specialized AI services as function calls
-- **Event_Sourcing**: Pattern where state changes are captured as immutable events in Kafka
-- **Workflow_Activity**: Individual step within a Temporal workflow that can be retried independently
+- **Event_Sourcing**: Pattern where state changes are captured as events in Amazon MSK and AWS EventBridge
+- **Workflow_Activity**: Individual step within an AWS Step Functions workflow that can be retried independently
+- **RDS_PostgreSQL**: AWS managed relational database service with Multi-AZ deployment
+- **ElastiCache_Redis**: AWS managed in-memory caching service
+- **S3_Bucket**: AWS object storage for media files and vector embeddings
+- **OpenSearch_Service**: AWS managed search and analytics engine
 - **Severity_Score**: Numerical rating (0-1) indicating the intensity of policy violations
 - **Semantic_Similarity**: Measure of content similarity based on meaning rather than exact text matching
 - **Multi_Label_Classification**: AI classification where an issue ("mudda") content can belong to multiple categories simultaneously
@@ -92,7 +98,6 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 - **Asynchronous_Processing**: Non-blocking execution allowing system to handle delayed or intermittent operations
 - **Connectivity_Resilience**: System capability to function despite intermittent network availability
 
-MARKED-BY-SHUBH
 
 ## 4. Functional Requirements
 
@@ -130,8 +135,8 @@ MARKED-BY-SHUBH
 12. WHEN a mudda creation event is published, THE Categorization_Service SHALL consume the event and assign civic domain categories in the background
 13. WHEN images are present in a mudda, THE OCR_Service SHALL extract text from images before other AI services process the content
 14. WHEN background analysis completes, THE Mudda_Service SHALL update the mudda status and emit a mudda.analysis_completed event
-15. WHEN hate speech or NSFW content is detected above critical thresholds, THE Moderation_Service SHALL automatically hide the mudda and notify the author
-16. WHEN background analysis detects policy violations below critical thresholds, THE Moderation_Service SHALL flag the mudda for human review
+15. WHEN hate speech or NSFW content is detected above critical thresholds, THE system SHALL automatically hide the mudda and notify the author
+16. WHEN background analysis detects policy violations below critical thresholds, THE system SHALL flag the mudda for human review
 17. WHEN all background analysis services complete successfully, THE Mudda_Service SHALL transition the mudda to "active" status
 18. THE system SHALL store all analysis results (hate speech scores, NSFW scores, categories, duplicates) in the analytical database (Amazon Redshift) for reporting and feedback loops
 
@@ -149,9 +154,8 @@ MARKED-BY-SHUBH
 5. WHEN the resolution DAG is generated, THE Agentic_AI_Service SHALL identify required tools and government officials/staff to contact
 6. WHEN the Agentic_AI_Service plans actions, THE Agentic_AI_Service SHALL generate a sequence of tool calls to execute the resolution workflow
 7. WHEN the Agentic_AI_Service determines notification is needed, THE Agentic_AI_Service SHALL invoke the Notification_Service via tool calling to contact relevant authorities
-8. WHEN the Agentic_AI_Service determines routing is needed, THE Agentic_AI_Service SHALL invoke the Routing_Service via tool calling to determine jurisdictional authorities
-9. WHEN the Agentic_AI_Service determines escalation is needed, THE Agentic_AI_Service SHALL invoke the Escalation_Service via tool calling to prioritize the mudda
-10. WHEN tool call results are received, THE Agentic_AI_Service SHALL interpret results and decide on next actions
+8. WHEN the Agentic_AI_Service determines escalation is needed, THE Agentic_AI_Service SHALL invoke the Escalation_Service via tool calling to prioritize the mudda
+9. WHEN tool call results are received, THE Agentic_AI_Service SHALL interpret results and decide on next actions
 11. THE Agentic_AI_Service SHALL maintain conversation context across multiple reasoning steps within a workflow
 12. WHEN the resolution plan includes human-in-the-loop steps, THE Temporal_Workflow SHALL pause and create tasks for manual intervention
 13. WHEN human tasks are completed, THE Temporal_Workflow SHALL resume execution with the human decision incorporated
@@ -172,21 +176,21 @@ MARKED-BY-SHUBH
 28. THE Agentic_AI_Service SHALL cite specific regulations and past cases used in resolution planning for explainability
 29. THE system SHALL store all resolution plans and execution traces in the analytical database (Amazon Redshift) for feedback loops and continuous improvement
 
-### Requirement 4: Hate Speech Detection and Moderation
+### Requirement 4: Hate Speech Detection and Content Review
 
-**User Story:** As a platform moderator, I want abusive and harmful content to be automatically detected and flagged, so that the platform maintains a respectful civic discourse environment.
+**User Story:** As a platform administrator, I want abusive and harmful content to be automatically detected and flagged, so that the platform maintains a respectful civic discourse environment.
 
 #### Acceptance Criteria
 
 1. WHEN the Hate_Speech_Detection_Service consumes a mudda creation event, THE Hate_Speech_Detection_Service SHALL analyze the content and return a severity score between 0 and 1
-2. WHEN the severity score exceeds language-specific threshold (default 0.7), THE Hate_Speech_Detection_Service SHALL mark the mudda as "flagged_for_review" and emit a moderation event
+2. WHEN the severity score exceeds language-specific threshold (default 0.7), THE Hate_Speech_Detection_Service SHALL mark the mudda as "flagged_for_review" and emit a content review event
 3. WHEN the severity score exceeds critical threshold (default 0.9), THE Hate_Speech_Detection_Service SHALL automatically hide the mudda and emit an event to notify the author
-4. WHEN a mudda is flagged for review, THE Moderation_Service SHALL create a human-in-the-loop task for manual review with language-appropriate moderators
+4. WHEN a mudda is flagged for review, THE system SHALL create a human-in-the-loop task for manual review with language-appropriate reviewers
 5. THE Hate_Speech_Detection_Service SHALL analyze both text content and OCR-extracted text from images
-6. WHEN a moderation decision is made by a human moderator, THE Moderation_Service SHALL emit a Kafka event with the decision and reasoning
-7. THE Moderation_Service SHALL store all moderation decisions with timestamps and decision-maker identifiers for auditability
+6. WHEN a review decision is made by a human reviewer, THE system SHALL emit a Kafka event with the decision and reasoning
+7. THE system SHALL store all review decisions with timestamps and decision-maker identifiers for auditability
 8. THE Hate_Speech_Detection_Service SHALL support hate speech detection in all supported Indian languages and code-mixed variants
-9. WHEN moderation decisions are overridden by humans, THE Moderation_Service SHALL emit correction events for feedback loop processing
+9. WHEN review decisions are overridden by humans, THE system SHALL emit correction events for feedback loop processing
 10. THE Platform SHALL maintain separate confidence thresholds per language based on model performance metrics
 11. WHEN hate speech detection confidence is below 0.6, THE Hate_Speech_Detection_Service SHALL escalate to human review regardless of severity score
 12. THE system SHALL store all hate speech detection results in the analytical database (Amazon Redshift) for performance monitoring and bias detection
@@ -232,7 +236,7 @@ MARKED-BY-SHUBH
 3. WHEN a comment is added, THE Comment_Service SHALL emit a "comment.created" Kafka event
 4. WHEN media is uploaded, THE Media_Service SHALL emit a "media.uploaded" Kafka event
 5. WHEN AI analysis completes, THE Agentic_AI_Service SHALL emit an "analysis.completed" Kafka event with all AI results
-6. WHEN a moderation decision is made, THE Moderation_Service SHALL emit a "moderation.decision" Kafka event
+6. WHEN a review decision is made, THE system SHALL emit a "content.reviewed" Kafka event
 7. THE Kafka_Infrastructure SHALL guarantee at-least-once delivery semantics for all events
 8. THE Kafka_Infrastructure SHALL partition events by mudda identifier to maintain ordering guarantees
 
@@ -271,7 +275,7 @@ MARKED-BY-SHUBH
 12. WHEN regulations are updated, THE RAG_Service SHALL re-index affected documents within 24 hours
 13. THE RAG_Service SHALL log all retrieval operations with query, retrieved documents, and relevance scores for auditability
 14. WHEN generating resolution plans, THE Agentic_AI_Service SHALL cite specific regulations and past cases used in decision-making
-15. THE RAG_Service SHALL support filtering by jurisdiction (city, district, state) to retrieve location-specific regulations
+15. THE RAG_Service SHALL support filtering by location (city, district, state) to retrieve location-specific regulations
 16. WHEN data residency mode is enabled, THE RAG_Service SHALL use only self-hosted embedding models within Indian data centers
 17. THE RAG_Service SHALL maintain version control for all indexed regulations and policy documents
 18. WHEN conflicting regulations are retrieved, THE RAG_Service SHALL return all conflicts with precedence metadata for human review
@@ -289,7 +293,7 @@ MARKED-BY-SHUBH
 5. THE Analytical_Layer SHALL refresh aggregated views at least every 15 minutes
 6. WHEN analytical queries are executed, THE Analytical_Layer SHALL not impact transactional service performance
 7. THE Analytical_Layer SHALL compute AI performance metrics including accuracy, precision, recall, and F1 scores per language and region
-8. THE Analytical_Layer SHALL track false positive and false negative rates from human moderation corrections
+8. THE Analytical_Layer SHALL track false positive and false negative rates from human review corrections
 9. THE Analytical_Layer SHALL compute disparate impact metrics across geographic regions and languages
 10. THE Analytical_Layer SHALL identify regional and temporal trends for feedback to AI policy configuration
 11. THE Analytical_Layer SHALL provide dashboards for bias monitoring and fairness audits
