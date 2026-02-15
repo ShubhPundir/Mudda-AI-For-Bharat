@@ -121,283 +121,510 @@ Configurable data residency with PII sanitization for external AI services ensur
 
 ## 2. High-Level Architecture
 
-### 2.1 System Context Diagram
+### 2.1 Architecture Diagrams Overview
 
-The following diagram illustrates the complete system architecture with all major components, their interactions, and data flows. The system is organized into distinct layers for clarity and separation of concerns.
+The system architecture is presented through five focused diagrams, each highlighting a specific aspect of the platform. These diagrams are designed to be investor-friendly, team-friendly, and documentation-friendly, providing clear views of different architectural concerns.
+
+#### Diagram 1: High-Level System Architecture
+
+This diagram shows the overall system structure with major layers and components.
 
 ```mermaid
 graph TB
-    %% ============================================
-    %% CLIENT LAYER
-    %% ============================================
-    subgraph ClientLayer["🖥️ CLIENT LAYER"]
+    subgraph Clients["👥 CLIENTS"]
+        Mobile["📱 Mobile App<br/>(Flutter)"]
+        Web["🌐 Web App<br/>(Next.js)"]
+    end
+    
+    Gateway["🚪 API Gateway<br/>(Spring Cloud Gateway)<br/>━━━━━━━━━━━━━━━<br/>Auth • Rate Limiting • Routing"]
+    
+    subgraph Backend["⚙️ BACKEND SERVICES (Spring Boot)"]
+        Services["• Authentication<br/>• Mudda Management<br/>• Comments<br/>• Media<br/>• Search<br/>• Notifications<br/>• Engagement<br/>• Routing<br/>• Moderation"]
+    end
+    
+    Kafka["📨 KAFKA<br/>Event Streaming Backbone<br/>━━━━━━━━━━━━━━━<br/>Topics: mudda.created,<br/>analysis_completed, etc."]
+    
+    Temporal["🔄 TEMPORAL.IO<br/>Workflow Orchestration<br/>━━━━━━━━━━━━━━━<br/>Resolution Planning<br/>Moderation Workflows"]
+    
+    subgraph AI["🤖 AI SERVICES (Python FastAPI)"]
         direction LR
-        Mobile["📱 Flutter Mobile App<br/>━━━━━━━━━━━━━━━<br/>• iOS & Android<br/>• Offline Support<br/>• Camera Integration<br/>• Local Queuing<br/>• Push Notifications"]
-        Web["🌐 Next.js Web App<br/>━━━━━━━━━━━━━━━<br/>• SSR React<br/>• Responsive Design<br/>• Admin Dashboard<br/>• Real-time Updates<br/>• PWA Support"]
+        ContentWorkers["📊 Content Analysis<br/>Workers<br/>━━━━━━━━━━━━━━━<br/>• Language Detection<br/>• Hate Speech<br/>• NSFW Filtering<br/>• Duplication<br/>• Categorization<br/>• OCR"]
+        AgenticAI["🧠 Agentic AI<br/>System<br/>━━━━━━━━━━━━━━━<br/>• Resolution Planning<br/>• DAG Synthesis<br/>• Tool Calling<br/>• RAG Integration"]
     end
     
-    %% ============================================
-    %% API GATEWAY LAYER
-    %% ============================================
-    subgraph GatewayLayer["🚪 API GATEWAY LAYER"]
-        Gateway["🔐 API Gateway<br/>Spring Cloud Gateway<br/>━━━━━━━━━━━━━━━<br/>• JWT Authentication<br/>• Rate Limiting<br/>• Request Routing<br/>• Load Balancing<br/>• Circuit Breaking"]
-    end
-    
-    %% ============================================
-    %% TRANSACTIONAL SERVICES LAYER
-    %% ============================================
-    subgraph TransactionalLayer["⚙️ TRANSACTIONAL SERVICES - Spring Boot"]
-        direction TB
-        
-        subgraph CoreServices["Core Services"]
-            Auth["🔑 Authentication<br/>━━━━━━━━━━━━<br/>• User Registration<br/>• JWT Tokens<br/>• MFA Support<br/>• Password Reset"]
-            Mudda["📋 Mudda Service<br/>━━━━━━━━━━━━<br/>• CRUD Operations<br/>• Status Management<br/>• Event Emission<br/>• Lifecycle Tracking"]
-            Comment["💬 Comment Service<br/>━━━━━━━━━━━━<br/>• Threading (5 levels)<br/>• Engagement<br/>• Moderation"]
-        end
-        
-        subgraph SupportServices["Support Services"]
-            Media["📸 Media Service<br/>━━━━━━━━━━━━<br/>• Upload/Storage<br/>• Thumbnails<br/>• CDN Integration<br/>• Resumable Uploads"]
-            Search["🔍 Search Service<br/>━━━━━━━━━━━━<br/>• Elasticsearch<br/>• Full-text Search<br/>• Geo Queries<br/>• Autocomplete"]
-            Notification["🔔 Notification<br/>━━━━━━━━━━━━<br/>• Push (FCM)<br/>• Email (SES)<br/>• SMS (Twilio)<br/>• Batching"]
-        end
-        
-        subgraph ManagementServices["Management Services"]
-            Engagement["👍 Engagement<br/>━━━━━━━━━━━━<br/>• Upvotes<br/>• Follows<br/>• Trending<br/>• Metrics"]
-            Routing["🗺️ Routing Service<br/>━━━━━━━━━━━━<br/>• Jurisdiction<br/>• Hierarchical<br/>• Official Mapping"]
-            Moderation["👨‍⚖️ Moderation<br/>━━━━━━━━━━━━<br/>• Human Review<br/>• Decision Tracking<br/>• Queue Management"]
-        end
-    end
-    
-    %% ============================================
-    %% EVENT STREAMING BACKBONE
-    %% ============================================
-    subgraph EventLayer["📨 EVENT STREAMING BACKBONE"]
-        Kafka["Apache Kafka Cluster<br/>━━━━━━━━━━━━━━━━━━━━━<br/>📊 Key Topics:<br/>• mudda.created<br/>• mudda.analysis_completed<br/>• mudda.resolution_planned<br/>• comment.created<br/>• moderation.decision<br/>• notification.dispatch<br/>━━━━━━━━━━━━━━━━━━━━━<br/>⚙️ Configuration:<br/>• 30 partitions/topic<br/>• Replication factor: 3<br/>• At-least-once delivery<br/>• Partition by mudda_id"]
-    end
-    
-    %% ============================================
-    %% WORKFLOW ORCHESTRATION
-    %% ============================================
-    subgraph WorkflowLayer["🔄 WORKFLOW ORCHESTRATION"]
-        Temporal["⏱️ Temporal.io Cluster<br/>━━━━━━━━━━━━━━━━━━━━━<br/>🔧 Core Workflows:<br/>• Resolution Planning<br/>• Moderation Review<br/>• Escalation Management<br/>━━━━━━━━━━━━━━━━━━━━━<br/>✨ Features:<br/>• Durable State<br/>• Auto Retry<br/>• Workflow Replay<br/>• Human-in-the-Loop<br/>• Exactly-once Execution"]
-    end
-    
-    %% ============================================
-    %% AI SERVICES LAYER
-    %% ============================================
-    subgraph AILayer["🤖 AI SERVICES LAYER - Python FastAPI"]
-        direction TB
-        
-        subgraph ContentAnalysis["📊 Content Analysis Workers (Background)"]
-            direction LR
-            Language["🌍 Language<br/>Detection<br/>━━━━━━━━<br/>• 10+ Indian<br/>  Languages<br/>• Code-mixed<br/>• Confidence<br/>  Scoring"]
-            HateSpeech["⚠️ Hate Speech<br/>Detection<br/>━━━━━━━━<br/>• Severity 0-1<br/>• Multilingual<br/>• OCR Text<br/>• Thresholds"]
-            NSFW["🚫 NSFW Media<br/>Filtering<br/>━━━━━━━━<br/>• Image/Video<br/>• CV Models<br/>• Cultural<br/>  Context"]
-            Duplication["🔗 Duplication<br/>Detection<br/>━━━━━━━━<br/>• Embeddings<br/>• Similarity<br/>  >0.85<br/>• Semantic"]
-            Categorization["🏷️ Categorization<br/>━━━━━━━━<br/>• Multi-label<br/>• 8+ Domains<br/>• Confidence<br/>• Validation"]
-            OCR["📄 OCR Service<br/>━━━━━━━━<br/>• Indian<br/>  Scripts<br/>• Handwritten<br/>• Printed"]
-        end
-        
-        subgraph AgenticSystem["🧠 AGENTIC AI SYSTEM"]
-            direction TB
-            
-            AgenticCore["🎯 Agentic AI Service<br/>━━━━━━━━━━━━━━━━━━━━━<br/>Core Modules:<br/>• Planner (DAG Synthesis)<br/>• Tool Registry<br/>• LLM Inference Engine<br/>• Decision Evaluator<br/>• Confidence Scoring<br/>• Human Escalation<br/>• Agent Coordinator<br/>• Memory Manager<br/>• Context Manager"]
-            
-            RAG["📚 RAG Service<br/>━━━━━━━━━━━━━━━━━━━━━<br/>• Vector Database<br/>• Regulations & Rules<br/>• Historical Cases<br/>• Semantic Search<br/>• Hybrid Retrieval<br/>• Jurisdiction Filter<br/>• Citation Tracking"]
-            
-            PII["🔒 PII Sanitization<br/>━━━━━━━━━━━━━━━━━━━━━<br/>• Name/Email/Phone<br/>• Aadhaar/PAN/Voter ID<br/>• Address/Bank Account<br/>• 99% Detection Rate<br/>• Pre-API Processing"]
-            
-            subgraph SpecializedAgents["🎭 Specialized Stateful Agents"]
-                direction LR
-                DecisionAgent["📋 Decision<br/>Planning"]
-                PolicyAgent["⚖️ Policy &<br/>Compliance<br/>(RAG)"]
-                RoutingAgent["🗺️ Routing"]
-                EscalationAgent["🚨 Escalation"]
-                EvidenceAgent["📑 Evidence<br/>Structuring"]
-                ImpactAgent["📊 Impact<br/>Measurement"]
-                EngagementAgent["👥 Community<br/>Engagement"]
-                ReflectionAgent["🔍 Reflection"]
-            end
-            
-            AILogging["📝 AI Logging Service<br/>━━━━━━━━━━━━━━━━━━━━━<br/>• Prompt History<br/>• Context Storage<br/>• Memory Layer<br/>• Audit Trail<br/>• Future Stateful Agents"]
-        end
-    end
-    
-    %% ============================================
-    %% ANALYTICAL LAYER
-    %% ============================================
-    subgraph AnalyticalLayer["📈 ANALYTICAL LAYER"]
-        direction TB
-        Redshift["🏢 Amazon Redshift<br/>Data Warehouse<br/>━━━━━━━━━━━━━━━━━━━━━<br/>• Fact Tables (analysis, decisions)<br/>• Dimension Tables (mudda, user)<br/>• Aggregated Views<br/>• Columnar Storage<br/>• 15-min Refresh"]
-        
-        AnalyticsFeedback["🔄 Analytics Feedback<br/>━━━━━━━━━━━━━━━━━━━━━<br/>• Performance Metrics<br/>• Threshold Tuning<br/>• False Positive/Negative<br/>• Drift Detection<br/>• Model Retraining Triggers"]
-        
-        FairnessMonitoring["⚖️ Fairness Monitoring<br/>━━━━━━━━━━━━━━━━━━━━━<br/>• Bias Detection<br/>• Disparate Impact<br/>• Regional Analysis<br/>• Language Analysis<br/>• Mitigation Strategies"]
-    end
-    
-    %% ============================================
-    %% DATA STORAGE LAYER
-    %% ============================================
-    subgraph StorageLayer["💾 DATA STORAGE LAYER"]
+    subgraph Storage["💾 STORAGE"]
         direction LR
-        PostgresDB[("🗄️ PostgreSQL<br/>━━━━━━━━━━━━<br/>• Transactional<br/>• Sharded by Region<br/>• Master-Replica<br/>• Per-Service DBs")]
-        RedisCache[("⚡ Redis<br/>━━━━━━━━━━━━<br/>• Caching<br/>• Sessions<br/>• Rate Limiting<br/>• Leaderboards")]
-        S3Storage[("📦 S3/MinIO<br/>━━━━━━━━━━━━<br/>• Object Storage<br/>• Media Files<br/>• CDN Integration<br/>• Lifecycle Mgmt")]
-        VectorDB[("🔢 Vector DB<br/>━━━━━━━━━━━━<br/>• RAG Embeddings<br/>• Regulations<br/>• Cases<br/>• Semantic Search")]
+        Postgres[("🗄️ PostgreSQL<br/>Transactional")]
+        Redis[("⚡ Redis<br/>Cache")]
+        S3[("📦 S3<br/>Media")]
+        Vector[("🔢 Vector DB<br/>RAG")]
     end
     
-    %% ============================================
-    %% EXTERNAL SERVICES
-    %% ============================================
-    subgraph ExternalLayer["🌐 EXTERNAL SERVICES"]
-        LLM["🧠 LLM APIs<br/>━━━━━━━━━━━━━━━━━━━━━<br/>Managed APIs:<br/>• OpenAI (GPT-4)<br/>• Anthropic (Claude 3)<br/>• Azure OpenAI<br/>━━━━━━━━━━━━━━━━━━━━━<br/>Self-Hosted:<br/>• Llama 3 70B<br/>• Mistral Large<br/>━━━━━━━━━━━━━━━━━━━━━<br/>• PII Sanitized Input<br/>• Data Residency Mode"]
-    end
+    Redshift["📈 REDSHIFT<br/>Analytics & Feedback<br/>━━━━━━━━━━━━━━━<br/>Performance Metrics<br/>Bias Detection<br/>Threshold Tuning"]
     
-    %% ============================================
-    %% CONNECTIONS - CLIENT TO GATEWAY
-    %% ============================================
-    Mobile -->|HTTPS/REST| Gateway
-    Web -->|HTTPS/REST| Gateway
+    LLM["🌐 LLM APIs<br/>━━━━━━━━━━━━━━━<br/>OpenAI • Anthropic<br/>Self-Hosted Models"]
     
-    %% ============================================
-    %% CONNECTIONS - GATEWAY TO SERVICES
-    %% ============================================
-    Gateway -->|Auth Requests| Auth
-    Gateway -->|Mudda CRUD| Mudda
-    Gateway -->|Comments| Comment
-    Gateway -->|Media Upload| Media
-    Gateway -->|Search Queries| Search
-    Gateway -->|Notifications| Notification
-    Gateway -->|Engagement| Engagement
+    %% Connections
+    Mobile --> Gateway
+    Web --> Gateway
+    Gateway --> Backend
+    Backend --> Kafka
+    Kafka --> ContentWorkers
+    Kafka --> Temporal
+    Temporal --> AgenticAI
+    AgenticAI --> LLM
+    Backend --> Storage
+    Kafka --> Redshift
+    Redshift -.->|Feedback| AgenticAI
     
-    %% ============================================
-    %% CONNECTIONS - SERVICES TO KAFKA
-    %% ============================================
-    Mudda -->|Emit Events| Kafka
-    Comment -->|Emit Events| Kafka
-    Media -->|Emit Events| Kafka
-    Engagement -->|Emit Events| Kafka
-    Moderation -->|Emit Events| Kafka
-    
-    %% ============================================
-    %% CONNECTIONS - KAFKA TO WORKERS
-    %% ============================================
-    Kafka -->|mudda.created| Language
-    Kafka -->|mudda.created| HateSpeech
-    Kafka -->|mudda.created| NSFW
-    Kafka -->|mudda.created| Duplication
-    Kafka -->|mudda.created| Categorization
-    Kafka -->|mudda.created| OCR
-    
-    %% ============================================
-    %% CONNECTIONS - KAFKA TO TEMPORAL
-    %% ============================================
-    Kafka -->|mudda.analysis_completed| Temporal
-    
-    %% ============================================
-    %% CONNECTIONS - TEMPORAL TO AGENTIC AI
-    %% ============================================
-    Temporal -->|Initiate Workflow| AgenticCore
-    
-    %% ============================================
-    %% CONNECTIONS - AGENTIC AI INTERNAL
-    %% ============================================
-    AgenticCore -->|Query Context| RAG
-    AgenticCore -->|Sanitize Content| PII
-    AgenticCore -->|Log Activity| AILogging
-    AgenticCore -->|Coordinate| DecisionAgent
-    AgenticCore -->|Coordinate| PolicyAgent
-    AgenticCore -->|Coordinate| RoutingAgent
-    AgenticCore -->|Coordinate| EscalationAgent
-    AgenticCore -->|Coordinate| EvidenceAgent
-    AgenticCore -->|Coordinate| ImpactAgent
-    AgenticCore -->|Coordinate| EngagementAgent
-    AgenticCore -->|Coordinate| ReflectionAgent
-    
-    %% ============================================
-    %% CONNECTIONS - AI TO EXTERNAL LLM
-    %% ============================================
-    PII -->|Sanitized Content| LLM
-    AgenticCore -->|Inference Requests| LLM
-    
-    %% ============================================
-    %% CONNECTIONS - KAFKA TO REDSHIFT
-    %% ============================================
-    Kafka -->|All Events<br/>Kafka Connect| Redshift
-    
-    %% ============================================
-    %% CONNECTIONS - REDSHIFT TO ANALYTICS
-    %% ============================================
-    Redshift -->|Query Metrics| AnalyticsFeedback
-    Redshift -->|Query Metrics| FairnessMonitoring
-    
-    %% ============================================
-    %% CONNECTIONS - ANALYTICS FEEDBACK LOOP
-    %% ============================================
-    AnalyticsFeedback -->|Adjust Thresholds| AgenticCore
-    FairnessMonitoring -->|Bias Alerts| Kafka
-    
-    %% ============================================
-    %% CONNECTIONS - SERVICES TO DATABASES
-    %% ============================================
-    Auth -->|Read/Write| PostgresDB
-    Mudda -->|Read/Write| PostgresDB
-    Comment -->|Read/Write| PostgresDB
-    Engagement -->|Read/Write| PostgresDB
-    Routing -->|Read/Write| PostgresDB
-    Moderation -->|Read/Write| PostgresDB
-    
-    Search -->|Cache| RedisCache
-    Gateway -->|Rate Limit| RedisCache
-    
-    Media -->|Store Files| S3Storage
-    
-    RAG -->|Query Embeddings| VectorDB
-    
-    %% ============================================
-    %% STYLING
-    %% ============================================
-    classDef clientStyle fill:#e1f5ff,stroke:#01579b,stroke-width:3px,color:#000
-    classDef gatewayStyle fill:#fff3e0,stroke:#e65100,stroke-width:3px,color:#000
-    classDef serviceStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
-    classDef kafkaStyle fill:#fff9c4,stroke:#f57f17,stroke-width:4px,color:#000
-    classDef temporalStyle fill:#e0f2f1,stroke:#004d40,stroke-width:3px,color:#000
-    classDef aiStyle fill:#fce4ec,stroke:#880e4f,stroke-width:2px,color:#000
-    classDef agenticStyle fill:#ffebee,stroke:#b71c1c,stroke-width:3px,color:#000
-    classDef analyticsStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000
-    classDef storageStyle fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px,color:#000
-    classDef externalStyle fill:#fafafa,stroke:#424242,stroke-width:2px,color:#000
+    classDef clientStyle fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    classDef gatewayStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef serviceStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef kafkaStyle fill:#fff9c4,stroke:#f57f17,stroke-width:3px
+    classDef aiStyle fill:#ffebee,stroke:#b71c1c,stroke-width:2px
+    classDef storageStyle fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px
+    classDef analyticsStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
     
     class Mobile,Web clientStyle
     class Gateway gatewayStyle
-    class Auth,Mudda,Comment,Media,Search,Notification,Engagement,Routing,Moderation serviceStyle
+    class Backend,Services serviceStyle
     class Kafka kafkaStyle
-    class Temporal temporalStyle
-    class Language,HateSpeech,NSFW,Duplication,Categorization,OCR aiStyle
-    class AgenticCore,RAG,PII,AILogging,DecisionAgent,PolicyAgent,RoutingAgent,EscalationAgent,EvidenceAgent,ImpactAgent,EngagementAgent,ReflectionAgent agenticStyle
-    class Redshift,AnalyticsFeedback,FairnessMonitoring analyticsStyle
-    class PostgresDB,RedisCache,S3Storage,VectorDB storageStyle
-    class LLM externalStyle
+    class ContentWorkers,AgenticAI,AI aiStyle
+    class Storage,Postgres,Redis,S3,Vector storageStyle
+    class Redshift analyticsStyle
 ```
 
-**Diagram Legend:**
+**Key Points:**
+- Clients interact via API Gateway
+- Backend Services handle transactional operations
+- Kafka enables event-driven architecture
+- AI Services process content and plan resolutions
+- Temporal orchestrates durable workflows
+- Storage layer separates concerns (transactional, cache, media, vectors)
+- Redshift provides analytics and feedback loops
 
-- **🖥️ Client Layer:** User-facing applications (mobile and web)
-- **🚪 API Gateway:** Single entry point with authentication and routing
-- **⚙️ Transactional Services:** Spring Boot microservices for real-time operations
-- **📨 Event Streaming:** Kafka backbone for asynchronous communication
-- **🔄 Workflow Orchestration:** Temporal.io for durable workflows
-- **🤖 AI Services:** Python-based AI processing (background workers + agentic system)
-- **📈 Analytical Layer:** Redshift for insights and feedback loops
-- **💾 Data Storage:** Databases, cache, object storage, vector DB
-- **🌐 External Services:** LLM APIs (managed and self-hosted)
+#### Diagram 2: Agentic AI Internal Design
 
-**Key Data Flows:**
+This diagram details the internal architecture of the Agentic AI System, including external context retrieval, RLHF with government officials, and action plan coordination.
 
-1. **Mudda Creation Flow:** User → Gateway → Mudda Service → Kafka → Background AI Workers → Analysis Complete
-2. **Resolution Planning Flow:** Kafka → Temporal → Agentic AI → RAG → LLM → Tool Calling → Resolution Plan
-3. **Analytics Feedback Loop:** All Events → Kafka → Redshift → Analytics Services → Threshold Adjustments → Agentic AI
-4. **Human-in-the-Loop:** Low Confidence → Temporal Pause → Moderation Service → Human Decision → Resume Workflow
+```mermaid
+graph TB
+    Input["📥 INPUT<br/>━━━━━━━━━━━━━━━<br/>Mudda + Context"]
+    
+    IssuesAPI["🔍 /issues API<br/>━━━━━━━━━━━━━━━<br/>• Historical Issues<br/>• Similar Cases<br/>• Context Retrieval<br/>• Pattern Analysis"]
+    
+    subgraph AgenticCore["🎯 AGENTIC AI SERVICE"]
+        direction TB
+        
+        Planner["📋 Planner Module<br/>━━━━━━━━━━━━━━━<br/>• DAG Synthesis<br/>• Multi-step Planning<br/>• Tool Selection<br/>• Action Sequencing"]
+        
+        LLMEngine["🧠 LLM Inference Engine<br/>━━━━━━━━━━━━━━━<br/>• Model Selection<br/>• Prompt Management<br/>• Chain-of-Thought<br/>• Structured Output<br/>• Plan Generation"]
+        
+        ToolRegistry["🔧 Tool Registry<br/>━━━━━━━━━━━━━━━<br/>• Available Tools<br/>• Schema Validation<br/>• Tool Execution<br/>• API Integration"]
+        
+        Evaluator["✅ Decision Evaluator<br/>━━━━━━━━━━━━━━━<br/>• Plan Validation<br/>• Policy Compliance<br/>• Feasibility Check<br/>• Resource Verification"]
+        
+        ConfidenceScoring["📊 Confidence Scoring<br/>━━━━━━━━━━━━━━━<br/>• Multi-factor Analysis<br/>• Threshold Comparison<br/>• Escalation Logic<br/>• Quality Assessment"]
+        
+        Memory["💾 Memory Manager<br/>━━━━━━━━━━━━━━━<br/>• Short-term Context<br/>• Long-term History<br/>• Retrieval<br/>• Learning Storage"]
+    end
+    
+    RAG["📚 RAG SERVICE<br/>━━━━━━━━━━━━━━━<br/>• Vector Database<br/>• Regulations<br/>• Historical Cases<br/>• Semantic Search<br/>• Citation Tracking<br/>• Policy Documents"]
+    
+    PII["🔒 PII Sanitization<br/>━━━━━━━━━━━━━━━<br/>• Pattern Detection<br/>• Redaction<br/>• Compliance<br/>• Data Protection"]
+    
+    subgraph Agents["🎭 SPECIALIZED AGENTS"]
+        direction LR
+        Decision["📋 Decision<br/>Planning"]
+        Policy["⚖️ Policy &<br/>Compliance"]
+        Routing["🗺️ Routing"]
+        Escalation["🚨 Escalation"]
+        Evidence["📑 Evidence"]
+        Impact["📊 Impact"]
+        Engagement["👥 Engagement"]
+        Reflection["🔍 Reflection"]
+    end
+    
+    AILogging["📝 AI Logging<br/>━━━━━━━━━━━━━━━<br/>• Prompt History<br/>• Audit Trail<br/>• Memory Layer<br/>• RLHF Data"]
+    
+    LLM["🌐 LLM APIs<br/>━━━━━━━━━━━━━━━<br/>• GPT-4<br/>• Claude 3<br/>• Self-Hosted<br/>• Fine-tuned Models"]
+    
+    subgraph HumanLoop["👥 HUMAN-IN-THE-LOOP (RLHF)"]
+        direction TB
+        GovOfficial["👔 Government Official<br/>━━━━━━━━━━━━━━━<br/>• Review Plan<br/>• Edit Actions<br/>• Approve/Reject<br/>• Provide Feedback<br/>• RLHF Training"]
+        
+        StaffWorkers["👷 Staff Workers<br/>━━━━━━━━━━━━━━━<br/>• Execute Tasks<br/>• Report Progress<br/>• Update Status<br/>• Field Operations"]
+    end
+    
+    ActionPlan["📋 ACTION PLAN<br/>━━━━━━━━━━━━━━━<br/>• Task Assignment<br/>• Timeline<br/>• Responsibilities<br/>• Coordination"]
+    
+    Output["📤 OUTPUT<br/>━━━━━━━━━━━━━━━<br/>Resolution Plan (DAG)"]
+    
+    %% Primary Flow
+    Input --> Planner
+    Input --> IssuesAPI
+    IssuesAPI --> Planner
+    
+    Planner --> RAG
+    RAG --> LLMEngine
+    Planner --> LLMEngine
+    
+    LLMEngine --> PII
+    PII --> LLM
+    LLM --> LLMEngine
+    
+    LLMEngine --> Evaluator
+    Evaluator --> ConfidenceScoring
+    
+    %% High Confidence Path
+    ConfidenceScoring -->|"High Confidence<br/>(≥0.8)"| Output
+    
+    %% Low Confidence Path - RLHF
+    ConfidenceScoring -->|"Low Confidence<br/>(<0.8)"| GovOfficial
+    GovOfficial -->|"Edit & Approve"| Output
+    GovOfficial -->|"Feedback"| AILogging
+    AILogging -->|"RLHF Training"| LLM
+    
+    %% Agent Coordination
+    Planner --> Agents
+    Agents --> LLMEngine
+    
+    %% Tool Execution
+    LLMEngine --> ToolRegistry
+    ToolRegistry --> ExternalServices["🔧 External Services<br/>━━━━━━━━━━━━━━━<br/>Notification<br/>Routing<br/>Escalation"]
+    
+    %% Memory Management
+    Planner --> Memory
+    Memory --> Planner
+    
+    %% Logging
+    LLMEngine --> AILogging
+    
+    %% Action Plan Execution
+    Output --> ActionPlan
+    ActionPlan --> GovOfficial
+    ActionPlan --> StaffWorkers
+    StaffWorkers -->|"Progress Updates"| ActionPlan
+    GovOfficial -->|"Supervision"| StaffWorkers
+    
+    %% Styling with better spacing
+    classDef coreStyle fill:#ffebee,stroke:#b71c1c,stroke-width:3px,stroke-dasharray:0
+    classDef supportStyle fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    classDef agentStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef externalStyle fill:#fafafa,stroke:#424242,stroke-width:2px
+    classDef humanStyle fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px
+    classDef apiStyle fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef outputStyle fill:#fff3e0,stroke:#ef6c00,stroke-width:3px
+    
+    class Planner,LLMEngine,ToolRegistry,Evaluator,ConfidenceScoring,Memory coreStyle
+    class RAG,PII,AILogging supportStyle
+    class Agents,Decision,Policy,Routing,Escalation,Evidence,Impact,Engagement,Reflection agentStyle
+    class LLM,ExternalServices externalStyle
+    class GovOfficial,StaffWorkers,HumanLoop humanStyle
+    class IssuesAPI apiStyle
+    class Output,ActionPlan outputStyle
+```
+
+**Key Components:**
+
+**Core Modules:**
+- **Planner**: Synthesizes resolution plans as DAGs with action sequencing
+- **LLM Engine**: Manages model inference with prompt templates and plan generation
+- **Tool Registry**: Validates and executes tool calls with API integration
+- **Evaluator**: Validates plans for correctness, compliance, and feasibility
+- **Confidence Scoring**: Determines if human review needed (threshold: 0.8)
+- **Memory Manager**: Maintains context across reasoning steps and stores learning data
+
+**Support Services:**
+- **RAG Service**: Retrieves relevant regulations, cases, and policy documents
+- **/issues API**: Provides historical issues and similar cases for context
+- **PII Sanitization**: Ensures data protection and compliance
+- **AI Logging**: Captures prompts, audit trails, and RLHF training data
+
+**Specialized Agents:**
+- Domain-specific reasoning modules for decision planning, policy compliance, routing, escalation, evidence structuring, impact measurement, engagement, and reflection
+
+**Human-in-the-Loop (RLHF):**
+- **Government Officials**: Review plans, edit actions, approve/reject, provide feedback for RLHF training
+- **Staff Workers**: Execute tasks, report progress, update status, handle field operations
+- **Action Plan**: Coordinates task assignment, timeline, responsibilities, and supervision
+
+**Flow:**
+1. Input + /issues API → Planner → RAG → LLM Engine
+2. High Confidence (≥0.8) → Direct Output
+3. Low Confidence (<0.8) → Government Official Review → Edit & Approve → Output
+4. Government Official Feedback → AI Logging → RLHF Training → LLM Improvement
+5. Output → Action Plan → Government Officials + Staff Workers
+6. Staff Workers report progress → Government Officials supervise
+
+#### Diagram 3: Event Flow Lifecycle
+
+This diagram shows the complete event flow from mudda creation to resolution planning.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Gateway
+    participant MuddaService
+    participant Kafka
+    participant Workers as AI Workers<br/>(Background)
+    participant Temporal
+    participant AgenticAI
+    participant RAG
+    participant LLM
+    participant Services as External<br/>Services
+    
+    User->>Gateway: Create Mudda
+    Gateway->>MuddaService: POST /muddas
+    MuddaService->>MuddaService: Save to DB<br/>(status: PENDING_ANALYSIS)
+    MuddaService->>Kafka: Emit mudda.created
+    MuddaService->>User: 201 Created
+    
+    Note over Kafka,Workers: Background Processing (Parallel)
+    
+    Kafka->>Workers: mudda.created event
+    
+    par Language Detection
+        Workers->>Workers: Detect Language
+    and Hate Speech
+        Workers->>Workers: Analyze Hate Speech
+    and NSFW Filter
+        Workers->>Workers: Scan Media
+    and Duplication
+        Workers->>Workers: Check Duplicates
+    and Categorization
+        Workers->>Workers: Classify Category
+    and OCR
+        Workers->>Workers: Extract Text
+    end
+    
+    Workers->>MuddaService: Update Analysis Results
+    MuddaService->>Kafka: Emit mudda.analysis_completed
+    
+    alt Content Clean
+        MuddaService->>MuddaService: status = ACTIVE
+        Kafka->>Temporal: mudda.analysis_completed
+        
+        Temporal->>AgenticAI: Initiate Resolution Planning
+        AgenticAI->>RAG: Query Regulations & Cases
+        RAG-->>AgenticAI: Context Retrieved
+        
+        AgenticAI->>LLM: Generate Resolution Plan
+        LLM-->>AgenticAI: Plan DAG
+        
+        AgenticAI->>AgenticAI: Validate & Score Confidence
+        
+        alt High Confidence
+            AgenticAI->>Services: Execute Tool Calls<br/>(Notify, Route, Escalate)
+            AgenticAI->>Kafka: Emit mudda.resolution_planned
+        else Low Confidence
+            AgenticAI->>Temporal: Escalate to Human
+            Note over Temporal: Workflow Paused
+        end
+        
+    else Content Flagged
+        MuddaService->>MuddaService: status = UNDER_REVIEW
+        Kafka->>Temporal: Initiate Moderation Workflow
+    end
+    
+    classDef userStyle fill:#e1f5ff,stroke:#01579b
+    classDef serviceStyle fill:#f3e5f5,stroke:#4a148c
+    classDef kafkaStyle fill:#fff9c4,stroke:#f57f17
+    classDef aiStyle fill:#ffebee,stroke:#b71c1c
+    
+    class User userStyle
+    class Gateway,MuddaService,Services serviceStyle
+    class Kafka kafkaStyle
+    class Workers,AgenticAI,RAG,LLM aiStyle
+```
+
+**Flow Steps:**
+1. User Creates Mudda → Immediate response
+2. Background AI Workers → Parallel content analysis
+3. Analysis Complete → Status updated
+4. If Clean → Temporal triggers resolution planning
+5. Agentic AI → Queries RAG, generates plan via LLM
+6. Confidence Check → Auto-execute or escalate to human
+7. If Flagged → Moderation workflow initiated
+
+#### Diagram 4: Data & Analytics Flow
+
+This diagram shows how data flows through the analytical layer and feeds back to improve AI.
+
+```mermaid
+graph TB
+    subgraph Sources["📊 DATA SOURCES"]
+        direction LR
+        MuddaEvents["Mudda Events"]
+        AIDecisions["AI Decisions"]
+        HumanCorrections["Human Corrections"]
+        Outcomes["Resolution Outcomes"]
+    end
+    
+    Kafka["📨 KAFKA<br/>All Events Stream"]
+    
+    KafkaConnect["🔌 Kafka Connect<br/>Streaming Ingestion"]
+    
+    subgraph Redshift["🏢 AMAZON REDSHIFT"]
+        direction TB
+        
+        FactTables["📋 Fact Tables<br/>━━━━━━━━━━━━━━━<br/>• fact_mudda_analysis<br/>• fact_moderation_decision<br/>• fact_engagement<br/>• fact_resolution_plan"]
+        
+        DimTables["📊 Dimension Tables<br/>━━━━━━━━━━━━━━━<br/>• dim_mudda<br/>• dim_user<br/>• dim_category<br/>• dim_jurisdiction<br/>• dim_date"]
+        
+        AggViews["📈 Aggregated Views<br/>━━━━━━━━━━━━━━━<br/>• ai_performance_by_language<br/>• ai_performance_by_region<br/>• mudda_trends<br/>• bias_metrics"]
+    end
+    
+    subgraph Analytics["📈 ANALYTICS SERVICES"]
+        direction TB
+        
+        FeedbackService["🔄 Analytics Feedback Service<br/>━━━━━━━━━━━━━━━<br/>• Compute Performance Metrics<br/>• False Positive/Negative Rates<br/>• Drift Detection<br/>• Threshold Recommendations"]
+        
+        FairnessService["⚖️ Fairness Monitoring Service<br/>━━━━━━━━━━━━━━━<br/>• Disparate Impact Analysis<br/>• Regional Bias Detection<br/>• Language Bias Detection<br/>• Mitigation Strategies"]
+    end
+    
+    subgraph Outputs["📤 OUTPUTS"]
+        direction LR
+        ThresholdAdjust["🎚️ Threshold<br/>Adjustments"]
+        BiasAlerts["⚠️ Bias<br/>Alerts"]
+        RetrainingTriggers["🔄 Model<br/>Retraining"]
+        PolicyUpdates["📋 Policy<br/>Updates"]
+    end
+    
+    AgenticAI["🧠 AGENTIC AI<br/>Updated Configuration"]
+    
+    ModelRegistry["📚 MODEL REGISTRY<br/>Version Control"]
+    
+    %% Flow
+    Sources --> Kafka
+    Kafka --> KafkaConnect
+    KafkaConnect --> FactTables
+    FactTables --> DimTables
+    DimTables --> AggViews
+    
+    AggViews --> FeedbackService
+    AggViews --> FairnessService
+    
+    FeedbackService --> ThresholdAdjust
+    FeedbackService --> RetrainingTriggers
+    FairnessService --> BiasAlerts
+    FairnessService --> PolicyUpdates
+    
+    ThresholdAdjust --> AgenticAI
+    BiasAlerts --> AgenticAI
+    PolicyUpdates --> ModelRegistry
+    RetrainingTriggers --> ModelRegistry
+    
+    ModelRegistry --> AgenticAI
+    
+    %% Feedback loop
+    AgenticAI -.->|Improved Decisions| Kafka
+    
+    classDef sourceStyle fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px
+    classDef kafkaStyle fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    classDef redshiftStyle fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef analyticsStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef outputStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef aiStyle fill:#ffebee,stroke:#b71c1c,stroke-width:2px
+    
+    class Sources,MuddaEvents,AIDecisions,HumanCorrections,Outcomes sourceStyle
+    class Kafka,KafkaConnect kafkaStyle
+    class Redshift,FactTables,DimTables,AggViews redshiftStyle
+    class Analytics,FeedbackService,FairnessService analyticsStyle
+    class Outputs,ThresholdAdjust,BiasAlerts,RetrainingTriggers,PolicyUpdates outputStyle
+    class AgenticAI,ModelRegistry aiStyle
+```
+
+**Analytics Flow:**
+1. All Events → Kafka → Redshift (via Kafka Connect)
+2. Data Modeling → Fact tables + Dimension tables → Aggregated views
+3. Analytics Services → Compute metrics, detect drift/bias
+4. Feedback Outputs → Threshold adjustments, alerts, retraining triggers
+5. Applied to AI → Agentic AI receives updated configuration
+6. Continuous Loop → Improved decisions generate new data
+
+**Key Metrics Tracked:**
+- Accuracy, Precision, Recall, F1 Score (per language/region)
+- False Positive/Negative Rates
+- Confidence Score Distributions
+- Human Review Rates
+- Disparate Impact Across Segments
+- Model Drift Indicators
+
+#### Diagram 5: Complete System Integration
+
+This diagram connects all the previous diagrams to show the complete system.
+
+```mermaid
+graph TB
+    subgraph D1["📊 DIAGRAM 1: High-Level Architecture"]
+        Clients1["Clients"]
+        Gateway1["API Gateway"]
+        Backend1["Backend Services"]
+        Kafka1["Kafka"]
+        Temporal1["Temporal"]
+        AI1["AI Services"]
+        Storage1["Storage"]
+        Redshift1["Redshift"]
+    end
+    
+    subgraph D2["🧠 DIAGRAM 2: Agentic AI Internal"]
+        AgenticCore["Agentic AI Core"]
+        RAG2["RAG Service"]
+        Agents2["Specialized Agents"]
+        LLM2["LLM APIs"]
+    end
+    
+    subgraph D3["🔄 DIAGRAM 3: Event Flow"]
+        EventFlow["mudda.created →<br/>AI Workers →<br/>analysis_completed →<br/>Temporal →<br/>Resolution Planning"]
+    end
+    
+    subgraph D4["📈 DIAGRAM 4: Data & Analytics"]
+        DataFlow["Kafka → Redshift →<br/>Analytics Services →<br/>Feedback → AI"]
+    end
+    
+    %% Connections between diagrams
+    Clients1 --> Gateway1
+    Gateway1 --> Backend1
+    Backend1 --> Kafka1
+    Kafka1 --> AI1
+    Kafka1 --> Temporal1
+    Temporal1 --> AI1
+    Backend1 --> Storage1
+    Kafka1 --> Redshift1
+    
+    AI1 -.->|Details in| D2
+    AgenticCore --> RAG2
+    AgenticCore --> Agents2
+    AgenticCore --> LLM2
+    
+    Kafka1 -.->|Flow in| D3
+    EventFlow -.->|Triggers| Temporal1
+    
+    Kafka1 -.->|Analytics in| D4
+    DataFlow -.->|Feedback to| AI1
+    
+    Redshift1 -.->|Feeds| DataFlow
+    
+    classDef d1Style fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    classDef d2Style fill:#ffebee,stroke:#b71c1c,stroke-width:2px
+    classDef d3Style fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    classDef d4Style fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    
+    class D1,Clients1,Gateway1,Backend1,Kafka1,Temporal1,AI1,Storage1,Redshift1 d1Style
+    class D2,AgenticCore,RAG2,Agents2,LLM2 d2Style
+    class D3,EventFlow d3Style
+    class D4,DataFlow d4Style
+```
+
+**Integration Points:**
+- Diagram 1 provides the overall system structure
+- Diagram 2 details the Agentic AI internals (referenced from D1's AI Services)
+- Diagram 3 shows the event flow lifecycle (using Kafka and Temporal from D1)
+- Diagram 4 shows analytics and feedback (using Redshift from D1, feeding back to AI)
+- All diagrams interconnect to form the complete Mudda platform architecture
+
+
 
 ### 2.2 Frontend Layer
 
@@ -527,7 +754,7 @@ graph TB
 
 **Responsibilities:**
 - Mudda CRUD operations
-- Status lifecycle management (PENDING_ANALYSIS → ACTIVE → ACKNOWLEDGED → RESOLVED)
+- Status lifecycle management (PENDING_ANALYSIS → UNDER_REVIEW → ACTIVE/HIDDEN → ACKNOWLEDGED → RESOLVED)
 - Geographic data validation
 - Event emission to Kafka
 - Duplicate linking
@@ -540,7 +767,6 @@ graph TB
 
 **Status Lifecycle:**
 ```
-PENDING_ANALYSIS → ACTIVE (clean content)
 PENDING_ANALYSIS → UNDER_REVIEW (flagged by AI)
 UNDER_REVIEW → ACTIVE (approved by moderator)
 UNDER_REVIEW → HIDDEN (rejected by moderator)
