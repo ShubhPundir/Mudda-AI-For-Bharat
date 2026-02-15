@@ -19,10 +19,10 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 ### Success Metrics
 
 1. **User Adoption**: Achieve 100,000 registered users within 6 months of launch
-2. **Issue Resolution**: Achieve 30% resolution rate for reported muddas within 90 days
-3. **AI Accuracy**: Achieve 95% accuracy for hate speech detection with <2% false positive rate
-4. **AI Accuracy**: Achieve 90% accuracy for issue categorization
-5. **AI Accuracy**: Achieve 85% accuracy for duplicate detection
+2. **Issue Resolution**: Achieve 70% resolution rate for reported muddas within 90 days
+3. **AI Accuracy for hate speech and media detection**: Achieve 95% accuracy for hate speech detection and intelligent media scanning for NSFW with <2% false positive rate
+4. **AI Accuracy for automatic issue categorization**: Achieve 90% accuracy for issue categorization
+5. **AI Accuracy for duplicity of same issues**: Achieve 85% accuracy for duplicate detection
 6. **Performance**: Maintain 99.9% uptime for core services
 7. **Engagement**: Achieve average of 5 comments per active mudda
 8. **Response Time**: Achieve median official response time of 48 hours for escalated issues
@@ -45,9 +45,10 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 
 - **Mudda**: A civic issue or public concern raised by a user on the platform
 - **Agentic_AI_Service**: Central cognitive decision-making microservice that uses LLMs for reasoning and orchestrates specialized AI services via tool calling
-- **Hate_Speech_Detection_Service**: Specialized AI microservice that analyzes text and images for abusive content with severity scoring
+- **Hate_Speech_Detection_Service**: Specialized AI microservice that analyzes text for abusive content with severity scoring
+- **NSFW_Media_Filtering_Service**: Specialized AI microservice that analyzes images, video and other media content for obscenity and mark for NSFW (Not Safe For Work).
 - **Duplication_Detection_Service**: Specialized AI microservice that uses semantic similarity and embeddings to identify near-duplicate issues
-- **Categorization_Service**: Specialized AI microservice that performs multi-label classification across civic domains
+- **Categorization_Service**: Specialized AI microservice that performs automatic multi-label classification across civic domains
 - **OCR_Service**: Specialized AI microservice that extracts text from images and scanned documents
 - **Temporal_Workflow**: Durable, fault-tolerant workflow orchestrated by Temporal.io with replay and audit capabilities
 - **Kafka_Event**: Asynchronous message published to Apache Kafka event streaming platform
@@ -59,7 +60,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 - **Workflow_Activity**: Individual step within a Temporal workflow that can be retried independently
 - **Severity_Score**: Numerical rating (0-1) indicating the intensity of policy violations
 - **Semantic_Similarity**: Measure of content similarity based on meaning rather than exact text matching
-- **Multi_Label_Classification**: AI classification where content can belong to multiple categories simultaneously
+- **Multi_Label_Classification**: AI classification where an issue ("mudda") content can belong to multiple categories simultaneously
 - **Civic_Domain**: Category of public issues (infrastructure, governance, health, public safety, etc.)
 - **Escalation**: Process of elevating an issue for higher-priority handling or human review
 - **Auditability**: Capability to trace and reproduce all system decisions with complete history
@@ -78,11 +79,10 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 - **False_Negative**: AI decision failing to detect actual policy violations
 - **Disparate_Impact**: Disproportionate effect of AI decisions on specific demographic or geographic groups
 - **Model_Governance**: Policies and processes for managing AI model lifecycle, versioning, and compliance
-- **Prompt_Template**: Versioned template for LLM interactions with placeholders for dynamic content
+- **Prompt_Template**: Versioned template for LLM interactions for stateful Agents with placeholders for dynamic content
 - **Inference_Parameter**: Configuration controlling AI model behavior (temperature, top-p, max tokens, etc.)
 - **Self_Hosted_Model**: AI model deployed and operated within platform infrastructure rather than via external API
-- **Managed_LLM_API**: External AI service accessed via API (e.g., OpenAI, Anthropic, Azure OpenAI)
-- **Regional_Threshold**: AI confidence threshold adjusted based on geographic or linguistic context
+- **Managed_LLM_API**: External AI service accessed via API (e.g., OpenAI, Anthropic, Azure OpenAI, self-hosted local models)
 - **Fairness_Audit**: Periodic review of AI decision outcomes across demographic and geographic segments
 - **Mitigation_Strategy**: Corrective action taken when bias or performance issues are detected in AI systems
 - **Cost_Efficiency**: Optimization of AI processing costs while maintaining quality and performance
@@ -103,6 +103,7 @@ The platform leverages Spring (Java) microservices, Apache Kafka for event strea
 4. WHEN a JWT token expires, THE Authentication_Service SHALL require re-authentication before allowing protected operations
 5. THE Authentication_Service SHALL support multi-factor authentication for enhanced security
 6. WHEN a user requests password reset, THE Authentication_Service SHALL send a secure reset link valid for 24 hours
+7. On clickage of the link, it will guide the user to the web-app/ flutter mobile app
 
 ### Requirement 2: Mudda Creation and Submission
 
